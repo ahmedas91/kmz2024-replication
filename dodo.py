@@ -101,11 +101,12 @@ def task_pull():
 
 
 def task_summary_stats():
-    """Generate summary statistics tables"""
-    file_dep = ["./src/example_table.py"]
+    """Generate summary statistics tables and the example plot"""
+    file_dep = ["./src/example_table.py", "./src/example_plot.py"]
     file_output = [
         "example_table.tex",
         "pandas_to_latex_simple_table1.tex",
+        "example_plot.png",
     ]
     targets = [OUTPUT_DIR / file for file in file_output]
 
@@ -113,6 +114,7 @@ def task_summary_stats():
         "actions": [
             "python ./src/example_table.py",
             "python ./src/pandas_to_latex_demo.py",
+            "python ./src/example_plot.py",
         ],
         "targets": targets,
         "file_dep": file_dep,
