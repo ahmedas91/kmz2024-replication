@@ -132,6 +132,24 @@ def task_tidy():
     }
 
 
+def task_standardize():
+    """Volatility-standardize the tidy dataset into the analysis-ready dataset"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/standardize_kmz.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/standardize_kmz.py",
+            "./src/clean_goyal_welch.py",
+            DATA_DIR / "kmz_dataset.parquet",
+        ],
+        "targets": [DATA_DIR / "kmz_dataset_standardized.parquet"],
+        "clean": [],
+    }
+
+
 def task_summary_stats():
     """Generate summary statistics tables and the example plot"""
     file_dep = ["./src/example_table.py", "./src/example_plot.py"]
