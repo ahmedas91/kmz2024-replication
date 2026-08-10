@@ -49,3 +49,13 @@ docs_path = "docs_src/dataframes/kmz_dataset_standardized.md"
 
 [charts]
 
+
+[charts.predictor_timeseries]
+name = "Standardized predictor time series"
+description = "Small-multiples overview of the volatility-standardized market excess return and the 15 KMZ predictors, 1930 onward."
+dataframe = "kmz_dataset_standardized"
+tags = ["monthly", "predictors", "standardized"]
+frequency = "monthly"
+path = "_output/predictor_timeseries.png"
+docs_path = "docs_src/charts/predictor_timeseries.md"
+

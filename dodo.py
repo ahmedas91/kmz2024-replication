@@ -151,12 +151,24 @@ def task_standardize():
 
 
 def task_summary_stats():
-    """Generate summary statistics tables and the example plot"""
-    file_dep = ["./src/example_table.py", "./src/example_plot.py"]
+    """Generate summary statistics tables and plots"""
+    file_dep = [
+        "./src/example_table.py",
+        "./src/example_plot.py",
+        "./src/table_predictor_summary.py",
+        "./src/plot_predictor_timeseries.py",
+        "./src/clean_goyal_welch.py",
+        "./src/standardize_kmz.py",
+        DATA_DIR / "kmz_dataset.parquet",
+        DATA_DIR / "kmz_dataset_standardized.parquet",
+    ]
     file_output = [
         "example_table.tex",
         "pandas_to_latex_simple_table1.tex",
         "example_plot.png",
+        "predictor_summary_table.tex",
+        "predictor_timeseries.png",
+        "predictor_timeseries.pdf",
     ]
     targets = [OUTPUT_DIR / file for file in file_output]
 
@@ -165,6 +177,8 @@ def task_summary_stats():
             "python ./src/example_table.py",
             "python ./src/pandas_to_latex_demo.py",
             "python ./src/example_plot.py",
+            "python ./src/table_predictor_summary.py",
+            "python ./src/plot_predictor_timeseries.py",
         ],
         "targets": targets,
         "file_dep": file_dep,
