@@ -98,6 +98,17 @@ def task_pull():
         "file_dep": ["./src/settings.py", "./src/pull_CRSP_stock.py"],
         "clean": [],
     }
+    yield {
+        "name": "goyal_welch",
+        "doc": "Pull the Goyal-Welch predictor dataset from Amit Goyal's website",
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/pull_goyal_welch.py",
+        ],
+        "targets": [DATA_DIR / "goyal_welch.parquet"],
+        "file_dep": ["./src/settings.py", "./src/pull_goyal_welch.py"],
+        "clean": [],
+    }
 
 
 def task_summary_stats():
