@@ -150,25 +150,18 @@ def task_standardize():
     }
 
 
-def task_summary_stats():
-    """Generate summary statistics tables and plots"""
+def task_template_examples():
+    """Run the project template's demo scripts (example LaTeX docs need them)"""
     file_dep = [
+        "./src/settings.py",
         "./src/example_table.py",
+        "./src/pandas_to_latex_demo.py",
         "./src/example_plot.py",
-        "./src/table_predictor_summary.py",
-        "./src/plot_predictor_timeseries.py",
-        "./src/clean_goyal_welch.py",
-        "./src/standardize_kmz.py",
-        DATA_DIR / "kmz_dataset.parquet",
-        DATA_DIR / "kmz_dataset_standardized.parquet",
     ]
     file_output = [
         "example_table.tex",
         "pandas_to_latex_simple_table1.tex",
         "example_plot.png",
-        "predictor_summary_table.tex",
-        "predictor_timeseries.png",
-        "predictor_timeseries.pdf",
     ]
     targets = [OUTPUT_DIR / file for file in file_output]
 
@@ -177,6 +170,33 @@ def task_summary_stats():
             "python ./src/example_table.py",
             "python ./src/pandas_to_latex_demo.py",
             "python ./src/example_plot.py",
+        ],
+        "targets": targets,
+        "file_dep": file_dep,
+        "clean": True,
+    }
+
+
+def task_summary_stats():
+    """Generate summary statistics tables and plots"""
+    file_dep = [
+        "./src/settings.py",
+        "./src/table_predictor_summary.py",
+        "./src/plot_predictor_timeseries.py",
+        "./src/clean_goyal_welch.py",
+        "./src/standardize_kmz.py",
+        DATA_DIR / "kmz_dataset.parquet",
+        DATA_DIR / "kmz_dataset_standardized.parquet",
+    ]
+    file_output = [
+        "predictor_summary_table.tex",
+        "predictor_timeseries.png",
+        "predictor_timeseries.pdf",
+    ]
+    targets = [OUTPUT_DIR / file for file in file_output]
+
+    return {
+        "actions": [
             "python ./src/table_predictor_summary.py",
             "python ./src/plot_predictor_timeseries.py",
         ],
@@ -241,8 +261,12 @@ def task_compile_latex_docs():
         "./reports/my_common_header.sty",
         "./reports/report_simple_example.tex",
         "./reports/slides_simple_example.tex",
-        "./src/example_plot.py",
-        "./src/example_table.py",
+        # Outputs of task_template_examples that the example docs \input or
+        # \includegraphics; depending on the outputs (not the scripts) makes
+        # doit order the tasks correctly.
+        OUTPUT_DIR / "example_table.tex",
+        OUTPUT_DIR / "pandas_to_latex_simple_table1.tex",
+        OUTPUT_DIR / "example_plot.png",
     ]
     targets = [
         "./reports/report_example.pdf",
