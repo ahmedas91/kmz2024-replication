@@ -35,5 +35,17 @@ path = "_data/kmz_dataset.parquet"
 docs_path = "docs_src/dataframes/kmz_dataset.md"
 
 
+[dataframes.kmz_dataset_standardized]
+name = "KMZ standardized dataset"
+description = "The tidy KMZ dataset after backward-looking volatility standardization; the analysis sample from 1930-01 onward."
+sources = ["kmz_dataset (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["monthly", "predictors", "returns", "standardized"]
+pull_method = "doit standardize (builds from kmz_dataset via src/standardize_kmz.py)"
+path = "_data/kmz_dataset_standardized.parquet"
+docs_path = "docs_src/dataframes/kmz_dataset_standardized.md"
+
+
 [charts]
 
