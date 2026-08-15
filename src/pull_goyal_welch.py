@@ -19,8 +19,13 @@ Notes on the workbook (checked against its ReadMe sheet):
    (inflation for month t is treated as time-t information), which is the
    convention Kelly, Malamud and Zhou (2024) adopt (their footnote 33).
 
-This module stores the RAW sheet only. Predictor construction and all other
-transformations happen in the tidy/cleaning module.
+This module stores the RAW sheet only, untrimmed: the full 1871-01 through
+2025-12 span is saved regardless of START_DATE/END_DATE, so changing those
+settings never requires (or silently misses) a re-pull. Sample bounds are
+applied downstream — the tidy module's inner merge with CRSP bounds the start
+at 1926-01, and the standardization module floors the analysis sample at
+1930-01. Predictor construction and all other transformations likewise happen
+in the tidy/cleaning module.
 """
 
 from io import BytesIO
@@ -33,8 +38,6 @@ from pandas.tseries.offsets import MonthEnd
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
-START_DATE = config("START_DATE")
-END_DATE = config("END_DATE")
 
 # Export link for the "All data up to 2025" workbook on
 # https://sites.google.com/view/agoyal145 (public, no credentials needed).
@@ -46,21 +49,19 @@ GOYAL_WELCH_URL = (
 )
 
 
-def pull_goyal_welch(start_date=START_DATE, end_date=END_DATE, url=GOYAL_WELCH_URL):
-    """Download the workbook and return its Monthly sheet trimmed to dates.
+def pull_goyal_welch(url=GOYAL_WELCH_URL):
+    """Download the workbook and return its full, untrimmed Monthly sheet.
 
     Adds a month-end `date` column parsed from `yyyymm` (month-end to match
     the CRSP `caldt` convention, which the tidy module merges on) and keeps
-    every raw column unchanged.
+    every raw column unchanged. No date filtering happens here: sample
+    bounds are a downstream concern (see module docstring).
     """
     response = requests.get(url, timeout=60)
     response.raise_for_status()
     df = pd.read_excel(BytesIO(response.content), sheet_name="Monthly")
     df["date"] = pd.to_datetime(df["yyyymm"], format="%Y%m") + MonthEnd(0)
-    mask = (df["date"] >= pd.Timestamp(start_date)) & (
-        df["date"] <= pd.Timestamp(end_date)
-    )
-    return df.loc[mask].reset_index(drop=True)
+    return df.reset_index(drop=True)
 
 
 def load_goyal_welch(data_dir=DATA_DIR):
@@ -70,6 +71,6 @@ def load_goyal_welch(data_dir=DATA_DIR):
 
 
 if __name__ == "__main__":
-    df = pull_goyal_welch(start_date=START_DATE, end_date=END_DATE)
+    df = pull_goyal_welch()
     path = Path(DATA_DIR) / "goyal_welch.parquet"
     df.to_parquet(path)
