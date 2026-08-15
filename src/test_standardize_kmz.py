@@ -95,6 +95,19 @@ def test_synthetic_input_from_1926_starts_1930():
     assert out["date"].iloc[0] == pd.Timestamp("1930-01-31")
 
 
+def test_interior_nan_raises_instead_of_fragmenting():
+    """An interior NaN raises ValueError rather than silently gapping the sample.
+
+    The closing dropna() may only trim leading burn-in rows; a NaN after the
+    sample start (here ep in 1931-11, the e12 <= 0 scenario on a future
+    vintage) must fail loudly, not shrink the monthly axis by one row.
+    """
+    df = _synthetic_tidy(84)
+    df.loc[70, "ep"] = np.nan
+    with pytest.raises(ValueError, match="interior NaN"):
+        standardize_kmz_dataset(df=df)
+
+
 @requires_data
 def test_analysis_start_and_paper_window_row_count():
     """The saved dataset starts 1930-01 and the paper window has 1,092 rows."""

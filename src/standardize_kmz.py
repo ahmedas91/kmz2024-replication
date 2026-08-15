@@ -26,8 +26,12 @@ applied at t):
  - No demeaning anywhere; standardization divides only.
 
 Sample start: rows with any missing standardized value are dropped, then the
-sample is floored at ANALYSIS_START (1930-01). With the current data vintage
-the natural burn-in ends at 1929-12, one month earlier; the paper states the
+sample is floored at ANALYSIS_START (1930-01). The drop may only trim the
+leading burn-in: a month-contiguity guard raises ValueError if it ever
+removes an interior month (e.g. ep/de turning NaN because a future data
+vintage has e12 <= 0), so the sample fragments loudly instead of silently.
+With the current data vintage the natural burn-in ends at 1929-12, one
+month earlier; the paper states the
 analysis sample "began in 1930", and its out-of-sample recursion over
 t in {T, ..., 1,091} implies exactly 1,092 months, 1930-01 through 2020-12,
 which the floor reproduces. The floor binds only when the data would allow
@@ -78,7 +82,8 @@ def standardize_kmz_dataset(df=None, data_dir=DATA_DIR):
     scaled by the trailing 12-month uncentered return volatility and the
     other 14 predictors scaled by their strictly-prior expanding-window
     standard deviations, burn-in rows dropped, and the sample floored at
-    ANALYSIS_START.
+    ANALYSIS_START. Raises ValueError if dropping missing values removes an
+    interior month rather than only leading burn-in rows.
     """
     if df is None:
         df = load_kmz_dataset(data_dir=data_dir)
@@ -93,6 +98,14 @@ def standardize_kmz_dataset(df=None, data_dir=DATA_DIR):
             out[column] = df[column] / expanding_vol(df[column])
 
     out = out.dropna().reset_index(drop=True)
+    month_ordinals = out["date"].dt.to_period("M").astype("int64")
+    gap_resumes = out["date"].loc[month_ordinals.diff() > 1]
+    if not gap_resumes.empty:
+        raise ValueError(
+            "interior NaN fragmented the standardized sample; dropna() may "
+            "only trim leading burn-in rows, but the month axis has gaps "
+            f"before {[d.strftime('%Y-%m') for d in gap_resumes]}"
+        )
     out = out.loc[out["date"] >= pd.Timestamp(ANALYSIS_START)].reset_index(drop=True)
     return out[["date", "mkt_excess"] + PREDICTOR_COLUMNS]
 
