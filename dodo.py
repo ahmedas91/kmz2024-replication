@@ -94,7 +94,10 @@ def task_pull():
             "python ./src/settings.py",
             "python ./src/pull_CRSP_stock.py",
         ],
-        "targets": [DATA_DIR / "CRSP_monthly_stock.parquet"],
+        "targets": [
+            DATA_DIR / "CRSP_monthly_stock.parquet",
+            DATA_DIR / "CRSP_MSIX.parquet",
+        ],
         "file_dep": ["./src/settings.py", "./src/pull_CRSP_stock.py"],
         "clean": [],
     }
@@ -107,6 +110,24 @@ def task_pull():
         ],
         "targets": [DATA_DIR / "goyal_welch.parquet"],
         "file_dep": ["./src/settings.py", "./src/pull_goyal_welch.py"],
+        "clean": [],
+    }
+
+
+def task_tidy():
+    """Build the tidy KMZ analysis dataset from the raw pulls"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/clean_goyal_welch.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/clean_goyal_welch.py",
+            DATA_DIR / "goyal_welch.parquet",
+            DATA_DIR / "CRSP_MSIX.parquet",
+        ],
+        "targets": [DATA_DIR / "kmz_dataset.parquet"],
         "clean": [],
     }
 

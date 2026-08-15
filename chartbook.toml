@@ -23,5 +23,17 @@ path = "_output/01_example_notebook_interactive.ipynb"
 [dataframes]
 
 
+[dataframes.kmz_dataset]
+name = "KMZ tidy dataset"
+description = "Monthly excess return of the CRSP value-weighted index plus the 15 Kelly-Malamud-Zhou predictors, 1926 onward."
+sources = ["Goyal-Welch predictor workbook", "CRSP monthly index (WRDS)"]
+providers = ["Amit Goyal", "CRSP via WRDS"]
+provider_links = ["https://sites.google.com/view/agoyal145", "https://wrds-www.wharton.upenn.edu/"]
+tags = ["monthly", "predictors", "returns"]
+pull_method = "doit tidy (builds from the raw pulls via src/clean_goyal_welch.py)"
+path = "_data/kmz_dataset.parquet"
+docs_path = "docs_src/dataframes/kmz_dataset.md"
+
+
 [charts]
 
