@@ -9,7 +9,6 @@ grid output has the right schema, and a fixed seed list is deterministic.
 import numpy as np
 import pandas as pd
 
-from voc.kernel_ridge import ridge_dual  # noqa: F401  (kept explicit as the dual under test)
 from voc.oos_engine import run_grid, run_recursive_oos
 from voc.rff import compute_rff, draw_rff_weights, standardize_by_training_window
 
