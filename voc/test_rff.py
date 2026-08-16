@@ -1,10 +1,10 @@
 """Tests for the random Fourier features module (issue #5).
 
 Pure-synthetic and need no data on disk. They pin the feature-map contract the
-OOS engine depends on: output shape, seed determinism, the nesting property that
-lets one max-size draw serve every smaller model, the sin/cos Pythagorean
-identity, that gamma is wired through, and the training-only standardization (no
-lookahead).
+OOS engine depends on: output shape, seed determinism, the nesting property (by
+slicing and by re-draw), the sin/cos Pythagorean identity, gamma wiring, and the
+training-only standardization (both conventions, degenerate columns, and shape
+guards). Each test seeds its own generator so an isolated rerun is reproducible.
 """
 
 import numpy as np
@@ -16,15 +16,12 @@ from voc.rff import (
     standardize_by_training_window,
 )
 
-RNG = np.random.default_rng(20240)
-
 
 def test_shape_is_two_columns_per_pair():
     """n_pairs weights over a (T, d) block give (T, 2 * n_pairs) features."""
-    G = RNG.standard_normal((30, 15))
+    G = np.random.default_rng(1).standard_normal((30, 15))
     omega = draw_rff_weights(n_pairs=64, n_predictors=15, seed=0)
-    S = compute_rff(G, omega)
-    assert S.shape == (30, 128)
+    assert compute_rff(G, omega).shape == (30, 128)
 
 
 def test_seed_determinism():
@@ -36,14 +33,17 @@ def test_seed_determinism():
     assert not np.allclose(a, c)
 
 
-def test_nesting_by_column_slice():
-    """The first P columns at max size equal the standalone P-feature model.
+def test_weights_nest_by_redraw():
+    """A smaller draw is the column prefix of a larger draw with the same seed —
+    so the natural per-model redraw is safe, not just slicing one max draw."""
+    omega_max = draw_rff_weights(100, 15, seed=3)
+    for k in (1, 4, 20, 60):
+        np.testing.assert_array_equal(draw_rff_weights(k, 15, seed=3), omega_max[:, :k])
 
-    Draw ONCE at the maximum n_pairs and slice: the smaller model must be the
-    left block of the larger one. This is the property that lets the grid reuse a
-    single draw per seed.
-    """
-    G = RNG.standard_normal((24, 15))
+
+def test_features_nest_by_column_slice():
+    """The first P feature columns at max size equal the standalone P-model."""
+    G = np.random.default_rng(4).standard_normal((24, 15))
     omega_max = draw_rff_weights(n_pairs=100, n_predictors=15, seed=3)
     S_max = compute_rff(G, omega_max)
     for P in (2, 8, 40, 120):
@@ -54,16 +54,14 @@ def test_nesting_by_column_slice():
 def test_sin_cos_pythagorean_pairing():
     """Interleaved columns 2i, 2i+1 are the sin/cos of one projection, so their
     squares sum to 1."""
-    G = RNG.standard_normal((40, 15))
-    omega = draw_rff_weights(60, 15, seed=11)
-    S = compute_rff(G, omega)
+    G = np.random.default_rng(11).standard_normal((40, 15))
+    S = compute_rff(G, draw_rff_weights(60, 15, seed=11))
     np.testing.assert_allclose(S[:, 0::2] ** 2 + S[:, 1::2] ** 2, 1.0, atol=1e-12)
 
 
 def test_gamma_is_a_parameter():
-    """gamma rescales the projection; the identity sin(2x) = 2 sin(x) cos(x)
-    links gamma = 2 back to gamma = 1."""
-    G = RNG.standard_normal((15, 15))
+    """gamma rescales the projection; sin(2x) = 2 sin(x) cos(x) links the two."""
+    G = np.random.default_rng(1).standard_normal((15, 15))
     omega = draw_rff_weights(30, 15, seed=1)
     S1 = compute_rff(G, omega, gamma=1.0)
     S2 = compute_rff(G, omega, gamma=2.0)
@@ -74,25 +72,54 @@ def test_gamma_is_a_parameter():
 
 def test_compute_rff_rejects_mismatched_omega():
     """omega's first axis must match the predictor dimension d."""
-    G = RNG.standard_normal((10, 15))
-    bad = draw_rff_weights(8, n_predictors=14, seed=0)
+    G = np.random.default_rng(0).standard_normal((10, 15))
     with pytest.raises(ValueError):
-        compute_rff(G, bad)
+        compute_rff(G, draw_rff_weights(8, n_predictors=14, seed=0))
 
 
 def test_standardization_uses_training_scale_only():
     """The out-of-sample block is divided by the TRAINING scale, so a wildly
-    rescaled test row stays rescaled — proving no test-period volatility leaks
-    into the divisor."""
-    G_train = RNG.standard_normal((12, 15))
-    omega = draw_rff_weights(20, 15, seed=2)
-    S_train = compute_rff(G_train, omega)
+    rescaled test row stays rescaled (no test-period volatility leaks in)."""
+    rng = np.random.default_rng(2)
+    S_train = compute_rff(rng.standard_normal((12, 15)), draw_rff_weights(20, 15, 2))
     S_test = S_train[0] * 1000.0  # one OOS row at 1000x scale
 
-    S_train_std, S_test_std = standardize_by_training_window(S_train, S_test)
-
-    # Training features now sit at unit uncentered scale ...
-    train_scale = np.sqrt(np.mean(S_train_std**2, axis=0))
-    np.testing.assert_allclose(train_scale, 1.0, atol=1e-9)
+    train_std, test_std = standardize_by_training_window(S_train, S_test)
+    # training features sit at unit uncentered scale (the default) ...
+    np.testing.assert_allclose(np.sqrt(np.mean(train_std ** 2, axis=0)), 1.0, atol=1e-9)
     # ... and the test row is still 1000x its matching training row.
-    np.testing.assert_allclose(S_test_std, S_train_std[0] * 1000.0, rtol=1e-9)
+    np.testing.assert_allclose(test_std, train_std[0] * 1000.0, rtol=1e-9)
+
+
+def test_centered_path_gives_unit_sample_sd():
+    """The centered path (uncentered=False) uses ddof=1, so each standardized
+    training column has sample SD 1."""
+    rng = np.random.default_rng(5)
+    S_train = compute_rff(rng.standard_normal((40, 15)), draw_rff_weights(25, 15, 5))
+    S_test = S_train[:3]
+    train_std, _ = standardize_by_training_window(S_train, S_test, uncentered=False)
+    np.testing.assert_allclose(train_std.std(axis=0, ddof=1), 1.0, atol=1e-9)
+
+
+def test_degenerate_column_is_left_unscaled():
+    """A near-constant column is mapped to scale 1.0, not amplified to infinity,
+    on both conventions, and the output stays finite."""
+    S_train = np.ones((12, 4))
+    S_train[:, 1] = np.linspace(-1.0, 1.0, 12)  # one varying column
+    S_test = np.ones((4,))
+    for uncentered in (True, False):
+        train_std, test_std = standardize_by_training_window(
+            S_train, S_test, uncentered=uncentered
+        )
+        assert np.isfinite(train_std).all() and np.isfinite(test_std).all()
+    # constant column on the centered path: SD 0 -> scale 1 -> values unchanged.
+    train_std, _ = standardize_by_training_window(S_train, S_test, uncentered=False)
+    np.testing.assert_allclose(train_std[:, 0], S_train[:, 0])
+
+
+def test_standardize_rejects_bad_test_shape():
+    """A (P, 1) column vector (the easy reshape mistake) is rejected, not
+    silently broadcast into a (P, P) matrix."""
+    S_train = np.random.default_rng(0).standard_normal((12, 8))
+    with pytest.raises(ValueError):
+        standardize_by_training_window(S_train, np.ones((8, 1)))
