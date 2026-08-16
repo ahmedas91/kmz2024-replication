@@ -22,12 +22,16 @@ So the shrinkage enters the T x T system as ``z * T`` (NOT ``z``), and
 ``sklearn.linear_model.Ridge(fit_intercept=False)`` reproduces this estimator with
 ``alpha = z * T`` — the mapping the tests encode.
 
-Multi-z reuse
--------------
-:func:`ridge_dual` accepts several ``z`` at once and reuses a SINGLE symmetric
-eigendecomposition of the Gram matrix ``S S'`` across all of them (the figure grid
-sweeps 7 shrinkage levels per window, so this is a ~7x saving): with
-``S S' = V diag(lambda) V'``, ``beta(z) = S' V diag(1 / (z*T + lambda)) V' R``.
+Conventions
+-----------
+- ``z`` must be > 0. The z -> 0 minimum-norm limit is :func:`ridgeless`; the dual
+  form is ill-conditioned at z = 0 once P < T (the Gram matrix is singular).
+- :func:`ridge_dual` always returns ``(n_z, P)`` — one row per shrinkage level,
+  even for a single ``z`` — so callers never have to branch on the return shape.
+- Multi-z reuse: one symmetric eigendecomposition of ``S S'`` serves every z (the
+  figure grid sweeps 7 levels per window, a ~7x saving): with
+  ``S S' = V diag(lambda) V'``, ``beta(z) = S' V diag(1 / (z*T + lambda)) V' R``,
+  evaluated for all z in a single GEMM.
 """
 
 from __future__ import annotations
@@ -35,7 +39,18 @@ from __future__ import annotations
 import numpy as np
 
 
-def ridge_dual(S_train: np.ndarray, R_train: np.ndarray, z) -> np.ndarray:
+def _check_training_arrays(S_train, R_train):
+    """Coerce and validate a (design, target) training pair."""
+    S = np.asarray(S_train, dtype=np.float64)
+    R = np.asarray(R_train, dtype=np.float64)
+    if S.ndim != 2:
+        raise ValueError("S_train must be 2-D (T, P)")
+    if R.shape != (S.shape[0],):
+        raise ValueError("R_train must have shape (T,) matching S_train rows")
+    return S, R
+
+
+def ridge_dual(S_train, R_train, z) -> np.ndarray:
     """KMZ ridge coefficients via the dual (T x T) form; no intercept.
 
     Parameters
@@ -45,58 +60,50 @@ def ridge_dual(S_train: np.ndarray, R_train: np.ndarray, z) -> np.ndarray:
     R_train : np.ndarray
         ``(T,)`` training targets.
     z : float or 1-D array-like of float
-        Ridge shrinkage level(s). When array-like, one symmetric
-        eigendecomposition of the Gram matrix is reused across all values.
+        Ridge shrinkage level(s), all strictly positive. A single symmetric
+        eigendecomposition of the Gram matrix is reused across every value. For
+        the z -> 0 minimum-norm limit use :func:`ridgeless`.
 
     Returns
     -------
     beta : np.ndarray
-        ``(P,)`` if ``z`` is scalar, else ``(n_z, P)`` with row i for ``z[i]``.
+        ``(n_z, P)`` — one row per z, always 2-D.
         ``beta(z) = S' (z*T*I_T + S S')^{-1} R``.
     """
-    S = np.asarray(S_train, dtype=np.float64)
-    R = np.asarray(R_train, dtype=np.float64)
-    if S.ndim != 2:
-        raise ValueError("S_train must be 2-D (T, P)")
-    if R.shape != (S.shape[0],):
-        raise ValueError("R_train must have shape (T,) matching S_train rows")
-    n_obs = S.shape[0]
-    scalar = np.ndim(z) == 0
+    S, R = _check_training_arrays(S_train, R_train)
     z_values = np.atleast_1d(np.asarray(z, dtype=np.float64))
+    if z_values.ndim != 1:
+        raise ValueError("z must be a scalar or a 1-D sequence")
+    if np.any(z_values <= 0.0):
+        raise ValueError("z must be > 0; use ridgeless() for the z=0 minimum-norm limit")
+    n_obs = S.shape[0]
 
-    # One symmetric eigendecomposition of the Gram matrix, reused across z.
     gram = S @ S.T  # (T, T), symmetric positive semidefinite
     eigvals, eigvecs = np.linalg.eigh(gram)
+    # Clamp PSD round-off: eigh can return tiny negatives, and at P < T the null
+    # space should be exactly 0, not ~1e-15 noise that corrupts small z.
+    eigvals = np.maximum(eigvals, 0.0)
     projected = eigvecs.T @ R  # (T,)
-
-    betas = np.empty((z_values.size, S.shape[1]), dtype=np.float64)
-    for i, z_i in enumerate(z_values):
-        # (z*T*I + S S')^{-1} R in the eigenbasis, then lift to P-space.
-        dual = eigvecs @ (projected / (z_i * n_obs + eigvals))
-        betas[i] = S.T @ dual
-    return betas[0] if scalar else betas
+    # (z*T*I + K)^{-1} R for every z at once, then lift to P-space in one GEMM.
+    scaled = projected[:, None] / (z_values[None, :] * n_obs + eigvals[:, None])
+    duals = eigvecs @ scaled  # (T, n_z)
+    return (S.T @ duals).T  # (n_z, P)
 
 
-def ridgeless(S_train: np.ndarray, R_train: np.ndarray) -> np.ndarray:
-    """Ridgeless (z -> 0) minimum-norm coefficients via the pseudoinverse.
+def ridgeless(S_train, R_train) -> np.ndarray:
+    """Ridgeless (z -> 0) minimum-norm coefficients.
 
-    Returns the minimum-norm least-squares solution ``pinv(S) @ R`` — the
-    interpolating solution of smallest L2 norm when P > T, and the ordinary
-    least-squares fit when P < T. The Figure 8 anchors are quoted for this
-    ridgeless case, so it gets its own numerically stable route rather than
-    :func:`ridge_dual` with a tiny z (which is ill-conditioned once the Gram
-    matrix is singular).
+    Returns ``lstsq(S, R)`` — the minimum-norm least-squares solution: the
+    interpolating solution of smallest L2 norm when P > T, and the OLS fit when
+    P < T. The Figure 8 anchors are quoted for this ridgeless case, so it gets its
+    own numerically stable route rather than :func:`ridge_dual` with a tiny z.
+    (``lstsq`` matches ``pinv(S) @ R`` without forming the (P, T) pseudoinverse.)
     """
-    S = np.asarray(S_train, dtype=np.float64)
-    R = np.asarray(R_train, dtype=np.float64)
-    if S.ndim != 2:
-        raise ValueError("S_train must be 2-D (T, P)")
-    if R.shape != (S.shape[0],):
-        raise ValueError("R_train must have shape (T,) matching S_train rows")
-    return np.linalg.pinv(S) @ R
+    S, R = _check_training_arrays(S_train, R_train)
+    return np.linalg.lstsq(S, R, rcond=None)[0]
 
 
-def predict(S_new: np.ndarray, beta: np.ndarray) -> np.ndarray:
+def predict(S_new, beta) -> np.ndarray:
     """Forecast as a plain dot product with the coefficients (no intercept).
 
     Parameters
@@ -104,11 +111,15 @@ def predict(S_new: np.ndarray, beta: np.ndarray) -> np.ndarray:
     S_new : np.ndarray
         ``(P,)`` or ``(m, P)`` out-of-sample features.
     beta : np.ndarray
-        ``(P,)`` coefficient vector.
+        ``(P,)`` coefficient vector for a single model. :func:`ridge_dual` returns
+        one row per z, so index the row you want before predicting.
 
     Returns
     -------
     forecast : np.ndarray or float
         Scalar for a single feature row, else ``(m,)``.
     """
-    return np.asarray(S_new, dtype=np.float64) @ np.asarray(beta, dtype=np.float64)
+    beta = np.asarray(beta, dtype=np.float64)
+    if beta.ndim != 1:
+        raise ValueError("beta must be 1-D (P,); index one row of a multi-z result")
+    return np.asarray(S_new, dtype=np.float64) @ beta
