@@ -25,7 +25,7 @@ DATA_DIR = config("DATA_DIR")
 MANUAL_DATA_DIR = config("MANUAL_DATA_DIR")
 OUTPUT_DIR = config("OUTPUT_DIR")
 OS_TYPE = config("OS_TYPE")
-USER = config("USER")
+TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
 ## Helpers for handling Jupyter Notebook tasks
 environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
@@ -146,6 +146,29 @@ def task_standardize():
             DATA_DIR / "kmz_dataset.parquet",
         ],
         "targets": [DATA_DIR / "kmz_dataset_standardized.parquet"],
+        "clean": [],
+    }
+
+
+def task_estimate():
+    """Run the recursive OOS grid on the standardized dataset (the voc engine)"""
+    grid = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}.parquet"
+    per_seed = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}_per_seed.parquet"
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/run_estimation.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/run_estimation.py",
+            "./voc/oos_engine.py",
+            "./voc/performance_metrics.py",
+            "./voc/rff.py",
+            "./voc/kernel_ridge.py",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+        ],
+        "targets": [grid, per_seed],
         "clean": [],
     }
 
@@ -325,7 +348,7 @@ def task_build_chartbook_site():
 
 def task_run_pytest():
     """Run pytest and save results to OUTPUT_DIR"""
-    src_py_files = list(Path("./src").glob("*.py"))
+    src_py_files = list(Path("./src").glob("*.py")) + list(Path("./voc").glob("*.py"))
     test_output = OUTPUT_DIR / "pytest_results.xml"
 
     def run_pytest():
