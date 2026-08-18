@@ -132,8 +132,9 @@ def standardize_by_training_window(
         "standard deviations", which reads as the centered SD, while footnote 34's
         explicit uncentered exception is stated for RETURNS; the two conventions
         differ materially for RFFs because cos columns have means near +1. The
-        default is left uncentered pending an empirical check against the paper's
-        Figure 7 levels in the OOS engine (issue #7), where the winner is pinned.
+        OOS engine pins the uncentered default and exposes an ``uncentered``
+        kwarg on ``run_recursive_oos``/``run_grid`` so the centered variant can
+        be A/B-checked against the paper's Figure 7/8 anchors (issues #8/#9).
 
     Returns
     -------

@@ -7,11 +7,15 @@ across seeds and then compute one statistic — average the per-seed statistics.
 
 Definitions
 -----------
-- OOS R^2 (footnote 40): ``1 - Var(forecast errors) / Var(realized returns)``.
-  The benchmark is the zero forecast, so a model that always predicts ~0 scores
-  ~0 — and, as the paper stresses, a good market-timing strategy routinely posts
-  a deeply NEGATIVE R^2 because R^2 is dominated by forecast scale while trading
-  profits load on forecast direction.
+- OOS R^2 (footnote 40): ``1 - Var(forecast errors) / Var(realized returns)``
+  with CENTERED variances, so the statistic is invariant to any CONSTANT
+  forecast: every constant (zero included) scores exactly 0, and a constant
+  bias on top of a good forecast is forgiven entirely. It rewards covariation
+  with the realized return, not level accuracy; do not "normalize" it to the
+  uncentered zero-benchmark form ``1 - sum(e^2)/sum(R^2)``, which is a
+  different statistic. As the paper stresses, a good market-timing strategy
+  routinely posts a deeply NEGATIVE R^2 because R^2 is dominated by forecast
+  scale while trading profits load on forecast direction.
 - Timing strategy: ``return_t = forecast_t * realized_t``; Sharpe =
   ``sqrt(12) * mean / SD`` (annualized; centered SD, footnote 40).
 - Alpha / IR / alpha t-stat: OLS of the strategy return on a static position in
@@ -30,7 +34,11 @@ PERIODS_PER_YEAR = 12
 
 
 def oos_r2(forecasts, realized):
-    """Out-of-sample R^2 against the zero-forecast benchmark (footnote 40)."""
+    """Out-of-sample R^2 with centered variances (footnote 40).
+
+    Invariant to constant forecasts: any constant, zero included, scores
+    exactly 0 (see the module docstring before changing this formula).
+    """
     forecasts = np.asarray(forecasts, dtype=np.float64)
     realized = np.asarray(realized, dtype=np.float64)
     return 1.0 - np.var(realized - forecasts) / np.var(realized)

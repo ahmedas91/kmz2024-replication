@@ -33,6 +33,11 @@ sample floor. Do not "restore" it by starting at ``t = T - 1``: feature row
 ``t - T`` would wrap to index -1 and train the first window on the LAST rows.
 
 The ridgeless (``z -> 0`` minimum-norm) column is recorded as ``z = 0.0``.
+
+RFF standardization uses the UNCENTERED training-window convention by default
+(``uncentered=True``), the pin promised in :mod:`voc.rff`; the kwarg on
+:func:`run_recursive_oos` / :func:`run_grid` exists so the centered variant
+can be A/B-checked against the paper's figure anchors (issues #8/#9).
 """
 
 from __future__ import annotations
@@ -58,7 +63,8 @@ P_GRID_DEFAULT = (2, 4, 8, 12, 24, 48, 96, 192, 384, 768, 1536, 3072, 6144, 1200
 
 def run_recursive_oos(
     G, R, seed, T=12, p_grid=P_GRID_DEFAULT, z_grid=Z_GRID_DEFAULT,
-    gamma=GAMMA_DEFAULT, include_ridgeless=True, return_forecasts=False,
+    gamma=GAMMA_DEFAULT, include_ridgeless=True, uncentered=True,
+    return_forecasts=False,
 ):
     """One repetition (one RFF seed) of the recursive OOS analysis.
 
@@ -76,6 +82,11 @@ def run_recursive_oos(
         finite values ``> 0``. Duplicates in either grid are dropped.
     include_ridgeless : bool
         Also fit the ``z -> 0`` minimum-norm model, recorded as ``z = 0.0``.
+    uncentered : bool
+        RFF training-window standardization convention (see
+        :func:`voc.rff.standardize_by_training_window`). The pipeline pins the
+        uncentered default; the kwarg exists so the centered variant can be
+        A/B-checked against the paper's Figure 7/8 anchors (issues #8/#9).
     return_forecasts : bool
         Additionally return the per-``(P, z)`` forecast and realized-return series.
 
@@ -134,7 +145,9 @@ def run_recursive_oos(
         # then slice the first P for each model (columns nest). Training features
         # are rows t-T..t-1, training returns rows t-T+1..t (the single shift);
         # plain slices are views, matching the brute-force test reference.
-        train_std, oos_std = standardize_by_training_window(S[t - T : t], S[t])
+        train_std, oos_std = standardize_by_training_window(
+            S[t - T : t], S[t], uncentered=uncentered
+        )
         R_train = R[t - T + 1 : t + 1]
         for P in p_grid:
             X = train_std[:, :P]
@@ -165,7 +178,7 @@ def run_recursive_oos(
 def run_grid(
     dataset, target_col="mkt_excess", predictor_cols=None, T=12,
     p_grid=P_GRID_DEFAULT, z_grid=Z_GRID_DEFAULT, seeds=range(50),
-    gamma=GAMMA_DEFAULT, include_ridgeless=True, n_jobs=1,
+    gamma=GAMMA_DEFAULT, include_ridgeless=True, uncentered=True, n_jobs=1,
 ):
     """Run the recursive OOS grid across seeds; return long-format statistics.
 
@@ -204,7 +217,7 @@ def run_grid(
     def _one_seed(seed):
         return run_recursive_oos(
             G, R, seed, T=T, p_grid=p_grid, z_grid=z_grid, gamma=gamma,
-            include_ridgeless=include_ridgeless,
+            include_ridgeless=include_ridgeless, uncentered=uncentered,
         )
 
     # joblib runs n_jobs=1 sequentially in-process, so one dispatch path serves
