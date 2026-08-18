@@ -35,6 +35,7 @@ OS_TYPE = config("OS_TYPE")
 ## Helpers for handling Jupyter Notebook tasks
 environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
 
+
 # fmt: off
 ## Helper functions for automatic execution of Jupyter notebooks
 def jupyter_execute_notebook(notebook_path):
@@ -253,7 +254,7 @@ def task_run_notebooks():
     """Preps the notebooks for presentation format.
     Execute notebooks if the script version of it has been changed.
     """
-    for notebook in notebook_tasks.keys():
+    for notebook in notebook_tasks:
         pyfile_path = Path(notebook_tasks[notebook]["path"])
         notebook_path = pyfile_path.with_suffix("")  # strips .py, leaves .ipynb
         notebook_name = notebook_path.stem  # e.g. "01_example_notebook_interactive"
@@ -326,6 +327,7 @@ def task_compile_latex_docs():
         "clean": True,
     }
 
+
 sphinx_targets = [
     "./docs/index.html",
 ]
@@ -334,8 +336,7 @@ sphinx_targets = [
 def task_build_chartbook_site():
     """Compile Sphinx Docs"""
     notebook_scripts = [
-        Path(notebook_tasks[notebook]["path"])
-        for notebook in notebook_tasks.keys()
+        Path(notebook_tasks[notebook]["path"]) for notebook in notebook_tasks
     ]
     file_dep = [
         "./README.md",
@@ -370,6 +371,7 @@ def task_run_pytest():
 
         result = subprocess.run(
             ["pytest", f"--junitxml={test_output}"],
+            check=False,  # the returncode is inspected below
         )
         if result.returncode != 0:
             # Remove the XML so doit won't consider the target up-to-date

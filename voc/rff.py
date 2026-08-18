@@ -151,7 +151,7 @@ def standardize_by_training_window(
             f"{S_train.shape[1]}; got {S_test.shape}"
         )
     if uncentered:
-        scale = np.sqrt(np.mean(S_train ** 2, axis=0))
+        scale = np.sqrt(np.mean(S_train**2, axis=0))
     else:
         scale = S_train.std(axis=0, ddof=1)
     # Degenerate columns (a near-constant feature, or a NaN/inf scale) are left

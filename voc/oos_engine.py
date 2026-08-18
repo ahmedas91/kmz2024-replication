@@ -62,8 +62,15 @@ P_GRID_DEFAULT = (2, 4, 8, 12, 24, 48, 96, 192, 384, 768, 1536, 3072, 6144, 1200
 
 
 def run_recursive_oos(
-    G, R, seed, T=12, p_grid=P_GRID_DEFAULT, z_grid=Z_GRID_DEFAULT,
-    gamma=GAMMA_DEFAULT, include_ridgeless=True, uncentered=True,
+    G,
+    R,
+    seed,
+    T=12,
+    p_grid=P_GRID_DEFAULT,
+    z_grid=Z_GRID_DEFAULT,
+    gamma=GAMMA_DEFAULT,
+    include_ridgeless=True,
+    uncentered=True,
     return_forecasts=False,
 ):
     """One repetition (one RFF seed) of the recursive OOS analysis.
@@ -176,9 +183,17 @@ def run_recursive_oos(
 
 
 def run_grid(
-    dataset, target_col="mkt_excess", predictor_cols=None, T=12,
-    p_grid=P_GRID_DEFAULT, z_grid=Z_GRID_DEFAULT, seeds=range(50),
-    gamma=GAMMA_DEFAULT, include_ridgeless=True, uncentered=True, n_jobs=1,
+    dataset,
+    target_col="mkt_excess",
+    predictor_cols=None,
+    T=12,
+    p_grid=P_GRID_DEFAULT,
+    z_grid=Z_GRID_DEFAULT,
+    seeds=range(50),
+    gamma=GAMMA_DEFAULT,
+    include_ridgeless=True,
+    uncentered=True,
+    n_jobs=1,
 ):
     """Run the recursive OOS grid across seeds; return long-format statistics.
 
@@ -216,8 +231,15 @@ def run_grid(
 
     def _one_seed(seed):
         return run_recursive_oos(
-            G, R, seed, T=T, p_grid=p_grid, z_grid=z_grid, gamma=gamma,
-            include_ridgeless=include_ridgeless, uncentered=uncentered,
+            G,
+            R,
+            seed,
+            T=T,
+            p_grid=p_grid,
+            z_grid=z_grid,
+            gamma=gamma,
+            include_ridgeless=include_ridgeless,
+            uncentered=uncentered,
         )
 
     # joblib runs n_jobs=1 sequentially in-process, so one dispatch path serves

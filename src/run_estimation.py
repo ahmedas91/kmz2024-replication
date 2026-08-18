@@ -24,7 +24,7 @@ pandas/engine imports at top level) so that import stays cheap.
 """
 
 import sys
-from datetime import datetime
+import time
 from pathlib import Path
 
 # Make the top-level `voc` package importable when doit runs `python ./src/...`
@@ -47,8 +47,8 @@ def main():
     # Heavy imports live here so dodo.py can import the constants above without
     # paying for pandas and the engine at every doit parse.
     import pandas as pd
-    from standardize_kmz import load_standardized_dataset
 
+    from standardize_kmz import load_standardized_dataset
     from voc.oos_engine import run_grid
 
     dataset = load_standardized_dataset(data_dir=DATA_DIR)
@@ -61,12 +61,12 @@ def main():
     print(f"[estimate] estimation sample: {len(dataset)} months ({span})")
     print(f"[estimate] grid: N_SEEDS={N_SEEDS}, N_JOBS={N_JOBS}, T={TRAIN_WINDOW}")
 
-    start = datetime.now()
+    start = time.perf_counter()
     per_seed, averaged = run_grid(
         dataset, T=TRAIN_WINDOW, seeds=range(N_SEEDS), n_jobs=N_JOBS
     )
     print(
-        f"[estimate] finished in {datetime.now() - start} - "
+        f"[estimate] finished in {time.perf_counter() - start:.1f}s - "
         f"{len(per_seed)} per-seed rows, {len(averaged)} (P, z) cells"
     )
 

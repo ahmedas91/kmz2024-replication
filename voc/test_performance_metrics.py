@@ -56,7 +56,7 @@ def test_alpha_ir_tstat_against_polyfit():
     resid = y - (intercept_pf + slope_pf * x)
     n, xbar, sxx = y.size, x.mean(), np.sum((x - x.mean()) ** 2)
     expected_ir = np.sqrt(12.0) * intercept_pf / resid.std()
-    expected_se = np.sqrt(np.sum(resid ** 2) / (n - 2) * (1.0 / n + xbar ** 2 / sxx))
+    expected_se = np.sqrt(np.sum(resid**2) / (n - 2) * (1.0 / n + xbar**2 / sxx))
 
     assert np.isclose(alpha, intercept_pf)
     assert np.isclose(information_ratio, expected_ir)
@@ -73,8 +73,14 @@ def test_compute_metrics_keys_and_consistency():
 
     m = compute_metrics(forecasts, realized, beta_norms)
     for key in (
-        "r2", "beta_norm", "mean_return", "volatility", "sharpe",
-        "alpha", "information_ratio", "alpha_tstat",
+        "r2",
+        "beta_norm",
+        "mean_return",
+        "volatility",
+        "sharpe",
+        "alpha",
+        "information_ratio",
+        "alpha_tstat",
     ):
         assert key in m and np.isfinite(m[key])
     assert np.isclose(m["r2"], oos_r2(forecasts, realized))

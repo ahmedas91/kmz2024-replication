@@ -40,8 +40,14 @@ def test_dual_recursion_matches_brute_force_primal():
     p_grid, z_grid = (2, 8), (1e-2, 1.0)
 
     _, out = run_recursive_oos(
-        G, R, seed=11, T=T, p_grid=p_grid, z_grid=z_grid,
-        include_ridgeless=False, return_forecasts=True,
+        G,
+        R,
+        seed=11,
+        T=T,
+        p_grid=p_grid,
+        z_grid=z_grid,
+        include_ridgeless=False,
+        return_forecasts=True,
     )
     S = compute_rff(G, draw_rff_weights(max(p_grid) // 2, d, 11))
     ts = np.arange(T, n - 1)
@@ -50,9 +56,9 @@ def test_dual_recursion_matches_brute_force_primal():
             expected = np.empty(ts.size)
             for i, t in enumerate(ts):
                 X_std, s_oos_std = standardize_by_training_window(
-                    S[t - T:t, :P], S[t, :P]
+                    S[t - T : t, :P], S[t, :P]
                 )
-                beta = _ridge_primal(X_std, R[t - T + 1:t + 1], z)
+                beta = _ridge_primal(X_std, R[t - T + 1 : t + 1], z)
                 expected[i] = s_oos_std @ beta
             np.testing.assert_allclose(
                 out["forecasts"][(P, z)], expected, rtol=1e-7, atol=1e-9
@@ -72,12 +78,24 @@ def test_no_lookahead_in_forecasts():
     R_future[k:] += 10.0
 
     _, base = run_recursive_oos(
-        G, R, seed=5, T=T, p_grid=(8,), z_grid=(1.0,),
-        include_ridgeless=False, return_forecasts=True,
+        G,
+        R,
+        seed=5,
+        T=T,
+        p_grid=(8,),
+        z_grid=(1.0,),
+        include_ridgeless=False,
+        return_forecasts=True,
     )
     _, perturbed = run_recursive_oos(
-        G, R_future, seed=5, T=T, p_grid=(8,), z_grid=(1.0,),
-        include_ridgeless=False, return_forecasts=True,
+        G,
+        R_future,
+        seed=5,
+        T=T,
+        p_grid=(8,),
+        z_grid=(1.0,),
+        include_ridgeless=False,
+        return_forecasts=True,
     )
     unaffected = k - T  # decision points t < k cannot use R[k:]
     np.testing.assert_allclose(
@@ -116,17 +134,33 @@ def test_grid_schema_and_finite_and_ridgeless_column():
     per (P, z) including the ridgeless (z=0) column."""
     dataset = _synthetic_dataset(60, 3)
     p_grid, z_grid = (2, 8, 12), (1e-2, 1.0, 1e2)
-    per_seed, averaged = run_grid(
-        dataset, seeds=range(2), p_grid=p_grid, z_grid=z_grid
-    )
+    per_seed, averaged = run_grid(dataset, seeds=range(2), p_grid=p_grid, z_grid=z_grid)
     expected_cols = {
-        "seed", "P", "z", "c", "r2", "beta_norm", "mean_return",
-        "volatility", "sharpe", "alpha", "information_ratio", "alpha_tstat",
+        "seed",
+        "P",
+        "z",
+        "c",
+        "r2",
+        "beta_norm",
+        "mean_return",
+        "volatility",
+        "sharpe",
+        "alpha",
+        "information_ratio",
+        "alpha_tstat",
     }
     assert expected_cols <= set(per_seed.columns)
     stats = per_seed[
-        ["r2", "beta_norm", "mean_return", "volatility",
-         "sharpe", "alpha", "information_ratio", "alpha_tstat"]
+        [
+            "r2",
+            "beta_norm",
+            "mean_return",
+            "volatility",
+            "sharpe",
+            "alpha",
+            "information_ratio",
+            "alpha_tstat",
+        ]
     ].to_numpy()
     assert np.isfinite(stats).all()
     # 3 P values x (3 z + ridgeless) models, averaged across seeds.
@@ -140,7 +174,12 @@ def test_grid_schema_and_finite_and_ridgeless_column():
 def test_determinism_same_seed_list():
     """The same seed list yields identical grid output."""
     dataset = _synthetic_dataset(60, 3)
-    kwargs = dict(seeds=range(3), p_grid=(2, 8), z_grid=(1.0,), include_ridgeless=False)
+    kwargs = {
+        "seeds": range(3),
+        "p_grid": (2, 8),
+        "z_grid": (1.0,),
+        "include_ridgeless": False,
+    }
     first, _ = run_grid(dataset, **kwargs)
     second, _ = run_grid(dataset, **kwargs)
     pd.testing.assert_frame_equal(first, second)
@@ -163,9 +202,7 @@ def test_rejects_bad_grids():
     with pytest.raises(ValueError, match="finite z > 0"):
         run_recursive_oos(G, R, seed=0, p_grid=(8,), z_grid=(float("nan"),))
     with pytest.raises(ValueError, match="empty model grid"):
-        run_recursive_oos(
-            G, R, seed=0, p_grid=(8,), z_grid=(), include_ridgeless=False
-        )
+        run_recursive_oos(G, R, seed=0, p_grid=(8,), z_grid=(), include_ridgeless=False)
 
 
 def test_rejects_short_samples_bad_T_and_nonfinite_data():

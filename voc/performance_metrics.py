@@ -47,9 +47,7 @@ def oos_r2(forecasts, realized):
 def sharpe_ratio(strategy_returns, periods_per_year=PERIODS_PER_YEAR):
     """Annualized Sharpe ratio of a return series (centered SD, footnote 40)."""
     strategy_returns = np.asarray(strategy_returns, dtype=np.float64)
-    return (
-        np.sqrt(periods_per_year) * strategy_returns.mean() / strategy_returns.std()
-    )
+    return np.sqrt(periods_per_year) * strategy_returns.mean() / strategy_returns.std()
 
 
 def alpha_ir_tstat(strategy_returns, market_returns, periods_per_year=PERIODS_PER_YEAR):
@@ -74,8 +72,8 @@ def alpha_ir_tstat(strategy_returns, market_returns, periods_per_year=PERIODS_PE
     alpha = ybar - slope * xbar
     resid = y - alpha - slope * x
     information_ratio = np.sqrt(periods_per_year) * alpha / resid.std()
-    resid_var = np.sum(resid ** 2) / (n - 2)
-    alpha_se = np.sqrt(resid_var * (1.0 / n + xbar ** 2 / sxx))
+    resid_var = np.sum(resid**2) / (n - 2)
+    alpha_se = np.sqrt(resid_var * (1.0 / n + xbar**2 / sxx))
     alpha_tstat = alpha / alpha_se
     return alpha, information_ratio, alpha_tstat
 
