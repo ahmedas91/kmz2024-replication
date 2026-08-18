@@ -7,7 +7,9 @@ and writes the long-format grid statistics to ``_data``. All estimation math and
 conventions live in ``voc/``.
 
 Config (via ``.env`` / command line, so reruns need zero code edits):
-  N_SEEDS       RFF repetitions (default 50; the paper averages 1,000)
+  N_SEEDS       RFF repetitions (default 500; the paper averages 1,000 — the
+                interpolation-boundary cells are extremely noisy per seed, so
+                low seed counts leave visible wiggles in Figure 7 Panel C)
   N_JOBS        joblib parallelism across seeds (default -1 = all cores)
   TRAIN_WINDOW  rolling training window T (default 12); embedded in the output
                 filenames, so different T values cache side by side
@@ -34,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
-N_SEEDS = config("N_SEEDS", default=50, cast=int)
+N_SEEDS = config("N_SEEDS", default=500, cast=int)
 N_JOBS = config("N_JOBS", default=-1, cast=int)
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 SAMPLE_END = config("SAMPLE_END", default="2020-12", cast=str)
