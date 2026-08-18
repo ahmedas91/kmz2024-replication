@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 
 from voc.kernel_ridge import ridge_dual, ridgeless
 from voc.performance_metrics import compute_metrics
@@ -174,12 +175,9 @@ def run_grid(
             include_ridgeless=include_ridgeless,
         )
 
-    if n_jobs == 1:
-        seed_results = [_one_seed(s) for s in seeds]
-    else:
-        from joblib import Parallel, delayed
-
-        seed_results = Parallel(n_jobs=n_jobs)(delayed(_one_seed)(s) for s in seeds)
+    # joblib runs n_jobs=1 sequentially in-process, so one dispatch path serves
+    # every setting (and the tested path IS the production path).
+    seed_results = Parallel(n_jobs=n_jobs)(delayed(_one_seed)(s) for s in seeds)
 
     per_seed = pd.DataFrame([row for rows in seed_results for row in rows])
     averaged = (
