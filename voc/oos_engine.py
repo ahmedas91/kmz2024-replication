@@ -29,6 +29,8 @@ The ridgeless (``z -> 0`` minimum-norm) column is recorded as ``z = 0.0``.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -137,51 +139,9 @@ def run_recursive_oos(
     return results
 
 
-def run_grid(
-    dataset, target_col="mkt_excess", predictor_cols=None, T=12,
-    p_grid=P_GRID_DEFAULT, z_grid=Z_GRID_DEFAULT, seeds=range(50),
-    gamma=GAMMA_DEFAULT, include_ridgeless=True, n_jobs=1,
-):
-    """Run the recursive OOS grid across seeds; return long-format statistics.
-
-    Parameters
-    ----------
-    dataset : pandas.DataFrame
-        Volatility-standardized data with ``target_col`` and ``predictor_cols``.
-        If ``predictor_cols`` is None, uses every column except ``"date"`` and the
-        target (the RFF dimension follows the predictor frame's width).
-    seeds : iterable of int
-        RFF repetition seeds.
-    n_jobs : int
-        joblib parallelism across seeds (``-1`` = all cores). Seeds are
-        independent, so results are identical for any ``n_jobs``.
-
-    Returns
-    -------
-    (per_seed, averaged) : tuple of pandas.DataFrame
-        ``per_seed`` has one row per ``(seed, P, z)``; ``averaged`` holds the
-        across-seed mean of each statistic per ``(P, z)``.
-    """
-    if predictor_cols is None:
-        predictor_cols = [c for c in dataset.columns if c not in ("date", target_col)]
-    G = dataset[predictor_cols].to_numpy(dtype=np.float64)
-    R = dataset[target_col].to_numpy(dtype=np.float64)
-    seeds = list(seeds)
-
-    def _one_seed(seed):
-        return run_recursive_oos(
-            G, R, seed, T=T, p_grid=p_grid, z_grid=z_grid, gamma=gamma,
-            include_ridgeless=include_ridgeless,
-        )
-
-    if n_jobs == 1:
-        seed_results = [_one_seed(s) for s in seeds]
-    else:
-        from joblib import Parallel, delayed
-
-        seed_results = Parallel(n_jobs=n_jobs)(delayed(_one_seed)(s) for s in seeds)
-
-    per_seed = pd.DataFrame([row for rows in seed_results for row in rows])
+def _aggregate(seed_stats, T):
+    """Stack per-seed rows and average each statistic across seeds per (P, z)."""
+    per_seed = pd.DataFrame([row for rows in seed_stats for row in rows])
     averaged = (
         per_seed.groupby(["P", "z"], sort=False)[list(_STAT_COLUMNS)]
         .mean()
@@ -189,3 +149,130 @@ def run_grid(
     )
     averaged["c"] = averaged["P"] / T
     return per_seed, averaged
+
+
+def _write_forecast_series(seed_bundles, dates, T, study_name, data_dir):
+    """Persist per-seed forecast / realized / strategy series for each (P, z).
+
+    ``seed_bundles`` is an iterable of ``(seed, bundle)`` from
+    :func:`run_recursive_oos` with ``return_forecasts=True``. The realized return
+    at out-of-sample window i is ``R[T+1+i]``, so its label is ``dates[T+1+i]`` when
+    ``dates`` is given, else the integer position.
+    """
+    frames = []
+    for seed, bundle in seed_bundles:
+        realized = bundle["realized"]
+        n_oos = realized.shape[0]
+        obs = (
+            np.asarray(dates)[T + 1 : T + 1 + n_oos]
+            if dates is not None
+            else np.arange(n_oos)
+        )
+        for (P, z), forecast in bundle["forecasts"].items():
+            frames.append(
+                pd.DataFrame(
+                    {
+                        "seed": seed, "P": P, "z": z, "obs": obs,
+                        "forecast": forecast, "realized": realized,
+                        "strategy": forecast * realized,
+                    }
+                )
+            )
+    path = Path(data_dir) / f"forecasts_{study_name}.parquet"
+    pd.concat(frames, ignore_index=True).to_parquet(path)
+    return path
+
+
+def run_voc_study(
+    target, predictors, *, dates=None, T=12, p_grid=P_GRID_DEFAULT,
+    z_grid=Z_GRID_DEFAULT, seeds=range(50), gamma=GAMMA_DEFAULT,
+    include_ridgeless=True, n_jobs=1, save_forecasts=False,
+    study_name="market", data_dir=None,
+):
+    """Run a virtue-of-complexity study on any (target, predictors) pair.
+
+    The reusable entry point: the KMZ market replication is one call, and
+    asset-class studies (bonds, international) or experiments (e.g. the Nagel
+    counterfactual) are other calls with different inputs. Inputs are assumed
+    ALREADY volatility-standardized (see :mod:`voc.preprocessing`) — the engine
+    never standardizes for you, so no lookahead is smuggled in on your behalf.
+
+    Parameters
+    ----------
+    target : array-like, shape (n,)
+        Standardized target returns; row t is month t.
+    predictors : array-like or DataFrame, shape (n, d)
+        Standardized predictors; the RFF dimension follows the width d.
+    dates : array-like, shape (n,), optional
+        Labels used for the forecast export's ``obs`` column.
+    save_forecasts : bool
+        If True, write per-seed forecast / realized / strategy series for every
+        ``(P, z)`` to ``<data_dir>/forecasts_<study_name>.parquet`` (requires
+        ``data_dir``). Keep the grid small when enabling this (e.g. just the anchor
+        configuration).
+    T, p_grid, z_grid, seeds, gamma, include_ridgeless, n_jobs :
+        As in :func:`run_recursive_oos`; ``n_jobs`` parallelizes across seeds.
+
+    Returns
+    -------
+    (per_seed, averaged) : tuple of pandas.DataFrame
+        One row per ``(seed, P, z)``, and the across-seed mean per ``(P, z)``.
+    """
+    R = np.asarray(target, dtype=np.float64).ravel()
+    G = np.asarray(predictors, dtype=np.float64)
+    if G.ndim != 2:
+        raise ValueError("predictors must be 2-D (n, d)")
+    if G.shape[0] != R.shape[0]:
+        raise ValueError("target and predictors must have the same number of rows")
+    if save_forecasts and data_dir is None:
+        raise ValueError("save_forecasts=True requires data_dir")
+    seeds = list(seeds)
+
+    def _one_seed(seed):
+        return run_recursive_oos(
+            G, R, seed, T=T, p_grid=p_grid, z_grid=z_grid, gamma=gamma,
+            include_ridgeless=include_ridgeless, return_forecasts=save_forecasts,
+        )
+
+    if n_jobs == 1:
+        seed_out = [_one_seed(s) for s in seeds]
+    else:
+        from joblib import Parallel, delayed
+
+        seed_out = Parallel(n_jobs=n_jobs)(delayed(_one_seed)(s) for s in seeds)
+
+    if save_forecasts:
+        seed_stats = [out[0] for out in seed_out]
+        _write_forecast_series(
+            list(zip(seeds, [out[1] for out in seed_out])),
+            dates, T, study_name, data_dir,
+        )
+    else:
+        seed_stats = seed_out
+
+    return _aggregate(seed_stats, T)
+
+
+def run_grid(
+    dataset, target_col="mkt_excess", predictor_cols=None, T=12,
+    p_grid=P_GRID_DEFAULT, z_grid=Z_GRID_DEFAULT, seeds=range(50),
+    gamma=GAMMA_DEFAULT, include_ridgeless=True, n_jobs=1,
+):
+    """DataFrame convenience wrapper over :func:`run_voc_study` (market schema).
+
+    Splits a standardized dataset into its ``target_col`` and predictor columns
+    (everything except ``"date"`` and the target, so the RFF dimension follows the
+    frame's width) and runs the study.
+
+    Returns
+    -------
+    (per_seed, averaged) : tuple of pandas.DataFrame
+    """
+    if predictor_cols is None:
+        predictor_cols = [c for c in dataset.columns if c not in ("date", target_col)]
+    dates = dataset["date"].to_numpy() if "date" in dataset.columns else None
+    return run_voc_study(
+        dataset[target_col], dataset[predictor_cols], dates=dates, T=T,
+        p_grid=p_grid, z_grid=z_grid, seeds=seeds, gamma=gamma,
+        include_ridgeless=include_ridgeless, n_jobs=n_jobs,
+    )
