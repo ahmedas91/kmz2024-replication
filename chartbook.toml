@@ -47,6 +47,30 @@ path = "_data/kmz_dataset_standardized.parquet"
 docs_path = "docs_src/dataframes/kmz_dataset_standardized.md"
 
 
+[dataframes.oos_grid_T12]
+name = "OOS grid statistics (T = 12)"
+description = "Across-seed mean out-of-sample statistics of the recursive VoC grid, one row per complexity P and shrinkage z: OOS R2, beta norm, timing-strategy return moments, Sharpe, alpha, IR, and alpha t-stat. The results dataframe behind the Figure 7 and Figure 8 replications."
+sources = ["kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["oos", "grid", "statistics", "replication"]
+pull_method = "doit estimate (src/run_estimation.py driving voc/oos_engine.py)"
+path = "_data/oos_grid_T12.parquet"
+docs_path = "docs_src/dataframes/oos_grid_T12.md"
+
+
+[dataframes.oos_grid_T12_per_seed]
+name = "OOS grid statistics per seed (T = 12)"
+description = "Per-repetition version of the OOS grid: one row per (seed, P, z), the inputs behind the across-seed means. Used for seed-noise diagnostics and anchor-test tolerances."
+sources = ["kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["oos", "grid", "statistics", "per-seed"]
+pull_method = "doit estimate (src/run_estimation.py driving voc/oos_engine.py)"
+path = "_data/oos_grid_T12_per_seed.parquet"
+docs_path = "docs_src/dataframes/oos_grid_T12_per_seed.md"
+
+
 [charts]
 
 
