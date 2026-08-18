@@ -70,12 +70,15 @@ def run_recursive_oos(
     Parameters
     ----------
     G : array-like, shape (n, d)
-        Volatility-standardized predictors; row t is month t.
+        Volatility-standardized predictors; row t is month t. Must be finite.
     R : array-like, shape (n,)
         Volatility-standardized market excess returns; row t is month t.
     seed : int
         RFF repetition index.
     T, p_grid, z_grid, gamma : see module defaults.
+        ``T`` is a positive integer leaving at least 3 OOS months
+        (``n >= T + 4``); ``p_grid`` holds positive even integers and ``z_grid``
+        finite values ``> 0``. Duplicates in either grid are dropped.
     include_ridgeless : bool
         Also fit the ``z -> 0`` minimum-norm model, recorded as ``z = 0.0``.
     return_forecasts : bool
@@ -90,21 +93,44 @@ def run_recursive_oos(
     """
     G = np.asarray(G, dtype=np.float64)
     R = np.asarray(R, dtype=np.float64)
-    p_grid = tuple(sorted(p_grid))
-    if any(P % 2 for P in p_grid):
-        raise ValueError("all P must be even (RFFs come in sin/cos pairs)")
-    z_grid = tuple(float(z) for z in z_grid)
-    if any(z == 0.0 for z in z_grid):
-        raise ValueError("z_grid must be > 0; use include_ridgeless for the z=0 limit")
+    if G.ndim != 2 or R.shape != (G.shape[0],):
+        raise ValueError(f"G must be (n, d) and R (n,); got G {G.shape}, R {R.shape}")
+    if not (np.isfinite(G).all() and np.isfinite(R).all()):
+        raise ValueError("G and R must be finite; the input has NaN/inf cells")
+    if T != int(T) or int(T) < 1:
+        raise ValueError(f"T must be a positive integer; got {T!r}")
+    T = int(T)
+    n_oos = G.shape[0] - T - 1
+    if n_oos < 3:
+        raise ValueError(
+            "need at least 3 OOS months (n_rows >= T + 4) for the performance "
+            f"statistics; n_rows={G.shape[0]} with T={T} gives n_oos={n_oos}"
+        )
+    if any(P != int(P) for P in p_grid):
+        raise ValueError(f"p_grid must hold integers; got {tuple(p_grid)!r}")
+    p_grid = tuple(sorted({int(P) for P in p_grid}))
+    if not p_grid or p_grid[0] < 2 or any(P % 2 for P in p_grid):
+        raise ValueError(
+            "every P must be a positive even integer (RFFs come in sin/cos "
+            f"pairs); got {p_grid!r}"
+        )
+    z_grid = tuple(dict.fromkeys(float(z) for z in z_grid))  # dedupe, keep order
+    if any(not np.isfinite(z) or z <= 0.0 for z in z_grid):
+        raise ValueError(
+            f"z_grid must hold finite z > 0, got {z_grid!r}; "
+            "use include_ridgeless for the z=0 minimum-norm limit"
+        )
+    z_labels = list(z_grid) + ([0.0] if include_ridgeless else [])
+    if not z_labels:
+        raise ValueError(
+            "empty model grid: z_grid is empty and include_ridgeless is False"
+        )
 
     omega = draw_rff_weights(p_grid[-1] // 2, G.shape[1], seed)
     S = compute_rff(G, omega, gamma=gamma)  # one max-size draw, sliced for nesting
 
     ts, feat_rows, ret_rows = _oos_windows(G.shape[0], T)
-    n_oos = ts.size
     realized = R[ts + 1]
-
-    z_labels = list(z_grid) + ([0.0] if include_ridgeless else [])
     forecasts = {(P, z): np.empty(n_oos) for P in p_grid for z in z_labels}
     beta_norms = {(P, z): np.empty(n_oos) for P in p_grid for z in z_labels}
 
@@ -116,12 +142,13 @@ def run_recursive_oos(
         for P in p_grid:
             X = train_std[:, :P]
             s_oos = oos_std[:P]
-            betas = ridge_dual(X, R_train, z_grid)  # one eigendecomposition, all z
-            forecasts_z = betas @ s_oos
-            norms_z = np.linalg.norm(betas, axis=1)
-            for j, z in enumerate(z_grid):
-                forecasts[(P, z)][i] = forecasts_z[j]
-                beta_norms[(P, z)][i] = norms_z[j]
+            if z_grid:
+                betas = ridge_dual(X, R_train, z_grid)  # one eigendecomp, all z
+                forecasts_z = betas @ s_oos
+                norms_z = np.linalg.norm(betas, axis=1)
+                for j, z in enumerate(z_grid):
+                    forecasts[(P, z)][i] = forecasts_z[j]
+                    beta_norms[(P, z)][i] = norms_z[j]
             if include_ridgeless:
                 beta_rl = ridgeless(X, R_train)
                 forecasts[(P, 0.0)][i] = s_oos @ beta_rl
@@ -150,9 +177,10 @@ def run_grid(
     dataset : pandas.DataFrame
         Volatility-standardized data with ``target_col`` and ``predictor_cols``.
         If ``predictor_cols`` is None, uses every column except ``"date"`` and the
-        target (the RFF dimension follows the predictor frame's width).
+        target (the RFF dimension follows the predictor frame's width). Must be
+        free of NaN/inf.
     seeds : iterable of int
-        RFF repetition seeds.
+        RFF repetition seeds; must be non-empty. Duplicates are dropped.
     n_jobs : int
         joblib parallelism across seeds (``-1`` = all cores). Seeds are
         independent, so results are identical for any ``n_jobs``.
@@ -167,7 +195,13 @@ def run_grid(
         predictor_cols = [c for c in dataset.columns if c not in ("date", target_col)]
     G = dataset[predictor_cols].to_numpy(dtype=np.float64)
     R = dataset[target_col].to_numpy(dtype=np.float64)
-    seeds = list(seeds)
+    if not (np.isfinite(G).all() and np.isfinite(R).all()):
+        raise ValueError(
+            "dataset has NaN/inf in the predictors or target; clean it upstream"
+        )
+    seeds = list(dict.fromkeys(int(s) for s in seeds))  # dedupe, keep order
+    if not seeds:
+        raise ValueError("seeds must be a non-empty iterable of ints")
 
     def _one_seed(seed):
         return run_recursive_oos(

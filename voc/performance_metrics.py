@@ -54,8 +54,14 @@ def alpha_ir_tstat(strategy_returns, market_returns, periods_per_year=PERIODS_PE
     y = np.asarray(strategy_returns, dtype=np.float64)
     x = np.asarray(market_returns, dtype=np.float64)
     n = y.size
+    if n < 3:
+        # n = 2 fits the two points exactly (resid_var divides by n - 2 = 0) and
+        # returns finite garbage; n < 2 degenerates earlier. Fail loudly instead.
+        raise ValueError(f"need at least 3 observations for the alpha OLS; got {n}")
     xbar, ybar = x.mean(), y.mean()
     sxx = np.sum((x - xbar) ** 2)
+    if sxx == 0.0:
+        raise ValueError("market_returns are constant; the alpha OLS is undefined")
     slope = np.sum((x - xbar) * (y - ybar)) / sxx
     alpha = ybar - slope * xbar
     resid = y - alpha - slope * x

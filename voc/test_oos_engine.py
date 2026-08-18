@@ -8,6 +8,7 @@ grid output has the right schema, and a fixed seed list is deterministic.
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from voc.oos_engine import run_grid, run_recursive_oos
 from voc.rff import compute_rff, draw_rff_weights, standardize_by_training_window
@@ -133,3 +134,65 @@ def test_determinism_same_seed_list():
     first, _ = run_grid(dataset, **kwargs)
     second, _ = run_grid(dataset, **kwargs)
     pd.testing.assert_frame_equal(first, second)
+
+
+def test_rejects_bad_grids():
+    """Config-reachable grid typos fail fast with clear messages, BEFORE the
+    expensive RFF build: odd/nonpositive P, nonpositive or non-finite z, and an
+    empty model grid."""
+    rng = np.random.default_rng(21)
+    G, R = rng.standard_normal((30, 2)), rng.standard_normal(30)
+    with pytest.raises(ValueError, match="positive even"):
+        run_recursive_oos(G, R, seed=0, p_grid=(3,), z_grid=(1.0,))
+    with pytest.raises(ValueError, match="positive even"):
+        run_recursive_oos(G, R, seed=0, p_grid=(-4, 8), z_grid=(1.0,))
+    with pytest.raises(ValueError, match="positive even"):
+        run_recursive_oos(G, R, seed=0, p_grid=(0, 8), z_grid=(1.0,))
+    with pytest.raises(ValueError, match="finite z > 0"):
+        run_recursive_oos(G, R, seed=0, p_grid=(8,), z_grid=(-1.0,))
+    with pytest.raises(ValueError, match="finite z > 0"):
+        run_recursive_oos(G, R, seed=0, p_grid=(8,), z_grid=(float("nan"),))
+    with pytest.raises(ValueError, match="empty model grid"):
+        run_recursive_oos(
+            G, R, seed=0, p_grid=(8,), z_grid=(), include_ridgeless=False
+        )
+
+
+def test_rejects_short_samples_bad_T_and_nonfinite_data():
+    """Degenerate samples raise clearly instead of crashing deep in the metrics
+    layer or silently caching NaN/garbage statistic rows."""
+    rng = np.random.default_rng(22)
+    G, R = rng.standard_normal((15, 2)), rng.standard_normal(15)
+    with pytest.raises(ValueError, match="at least 3 OOS months"):
+        run_recursive_oos(G, R, seed=0, T=12, p_grid=(4,), z_grid=(1.0,))
+    with pytest.raises(ValueError, match="positive integer"):
+        run_recursive_oos(G, R, seed=0, T=0, p_grid=(4,), z_grid=(1.0,))
+    with pytest.raises(ValueError, match="positive integer"):
+        run_recursive_oos(G, R, seed=0, T=-12, p_grid=(4,), z_grid=(1.0,))
+    G_bad = G.copy()
+    G_bad[3, 1] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        run_recursive_oos(G_bad, R, seed=0, T=4, p_grid=(4,), z_grid=(1.0,))
+
+
+def test_duplicate_grid_values_collapse_to_one_row():
+    """z_grid=(1, 1.0) and p_grid=(8, 8) must not emit duplicated (P, z) rows;
+    duplicates would break downstream pivots on the cached parquet."""
+    rng = np.random.default_rng(23)
+    G, R = rng.standard_normal((30, 2)), rng.standard_normal(30)
+    results = run_recursive_oos(
+        G, R, seed=0, p_grid=(8, 8), z_grid=(1, 1.0), include_ridgeless=False
+    )
+    assert len(results) == 1
+
+
+def test_run_grid_rejects_empty_seeds_and_dirty_datasets():
+    """N_SEEDS=0 or a NaN cell must fail with a clear error, not a KeyError deep
+    in pandas or a LinAlgError deep in eigh."""
+    dataset = _synthetic_dataset(40, 2)
+    with pytest.raises(ValueError, match="non-empty"):
+        run_grid(dataset, seeds=())
+    dirty = dataset.copy()
+    dirty.loc[5, "x0"] = np.nan
+    with pytest.raises(ValueError, match="NaN"):
+        run_grid(dirty, seeds=range(1), p_grid=(4,), z_grid=(1.0,))
