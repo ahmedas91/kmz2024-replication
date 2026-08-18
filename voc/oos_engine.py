@@ -24,6 +24,14 @@ already realized — forecasts ``R[t+1]`` from ``G[t]``, and books
 ``forecast * R[t+1]``. Nothing dated after ``t`` enters the fit or the
 standardization, so there is no lookahead.
 
+The decision points are ``t = T, ..., n-2`` — ``n - T - 1`` OOS months, one
+FEWER than the paper's literal ``t in {T, ..., 1091}`` (Section V.C step iii,
+``1092 - T`` months): the paper's final decision books ``R[1092]``, which an
+n = 1092 row sample (1930-01 to 2020-12) cannot supply. The paper attains the
+extra month only because its raw data begin before this project's 1930-01
+sample floor. Do not "restore" it by starting at ``t = T - 1``: feature row
+``t - T`` would wrap to index -1 and train the first window on the LAST rows.
+
 The ridgeless (``z -> 0`` minimum-norm) column is recorded as ``z = 0.0``.
 """
 
@@ -33,32 +41,19 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from voc.kernel_ridge import ridge_dual, ridgeless
+from voc.kernel_ridge import predict, ridge_dual, ridgeless
 from voc.performance_metrics import compute_metrics
-from voc.rff import compute_rff, draw_rff_weights, standardize_by_training_window
+from voc.rff import (
+    GAMMA_DEFAULT,
+    compute_rff,
+    draw_rff_weights,
+    standardize_by_training_window,
+)
 
-GAMMA_DEFAULT = 2.0
-Z_GRID_DEFAULT = tuple(10.0 ** k for k in range(-3, 4))  # 1e-3 .. 1e3
+Z_GRID_DEFAULT = tuple(10.0**k for k in range(-3, 4))  # 1e-3 .. 1e3
 # Complexity grid P = c * T; includes P=2, P=12 (c=1), and P=12000 (c=1000, the
 # anchor). All even (sin/cos pairs).
 P_GRID_DEFAULT = (2, 4, 8, 12, 24, 48, 96, 192, 384, 768, 1536, 3072, 6144, 12000)
-_STAT_COLUMNS = (
-    "r2", "beta_norm", "mean_return", "volatility", "sharpe",
-    "alpha", "information_ratio", "alpha_tstat",
-)
-
-
-def _oos_windows(n_rows, T):
-    """Decision points and their training/forecast row indices.
-
-    For decision point ``ts[i] = t`` the training feature rows are ``t-T..t-1``,
-    the training-return rows are ``t-T+1..t`` (shifted one month forward), and the
-    forecast uses row ``t`` against the realized ``R[t+1]``.
-    """
-    ts = np.arange(T, n_rows - 1)  # need R[t+1], so t <= n-2
-    feat_rows = ts[:, None] + np.arange(-T, 0)[None, :]
-    ret_rows = ts[:, None] + np.arange(-T + 1, 1)[None, :]
-    return ts, feat_rows, ret_rows
 
 
 def run_recursive_oos(
@@ -129,16 +124,18 @@ def run_recursive_oos(
     omega = draw_rff_weights(p_grid[-1] // 2, G.shape[1], seed)
     S = compute_rff(G, omega, gamma=gamma)  # one max-size draw, sliced for nesting
 
-    ts, feat_rows, ret_rows = _oos_windows(G.shape[0], T)
+    ts = np.arange(T, G.shape[0] - 1)  # decision points; each books R[t + 1]
     realized = R[ts + 1]
     forecasts = {(P, z): np.empty(n_oos) for P in p_grid for z in z_labels}
     beta_norms = {(P, z): np.empty(n_oos) for P in p_grid for z in z_labels}
 
-    for i in range(n_oos):
+    for i, t in enumerate(ts):
         # Standardize every feature column by its training-window volatility once,
-        # then slice the first P for each model (columns nest).
-        train_std, oos_std = standardize_by_training_window(S[feat_rows[i]], S[ts[i]])
-        R_train = R[ret_rows[i]]
+        # then slice the first P for each model (columns nest). Training features
+        # are rows t-T..t-1, training returns rows t-T+1..t (the single shift);
+        # plain slices are views, matching the brute-force test reference.
+        train_std, oos_std = standardize_by_training_window(S[t - T : t], S[t])
+        R_train = R[t - T + 1 : t + 1]
         for P in p_grid:
             X = train_std[:, :P]
             s_oos = oos_std[:P]
@@ -151,7 +148,7 @@ def run_recursive_oos(
                     beta_norms[(P, z)][i] = norms_z[j]
             if include_ridgeless:
                 beta_rl = ridgeless(X, R_train)
-                forecasts[(P, 0.0)][i] = s_oos @ beta_rl
+                forecasts[(P, 0.0)][i] = predict(s_oos, beta_rl)
                 beta_norms[(P, 0.0)][i] = np.linalg.norm(beta_rl)
 
     results = []
@@ -189,7 +186,8 @@ def run_grid(
     -------
     (per_seed, averaged) : tuple of pandas.DataFrame
         ``per_seed`` has one row per ``(seed, P, z)``; ``averaged`` holds the
-        across-seed mean of each statistic per ``(P, z)``.
+        across-seed mean per ``(P, z)`` of every statistic column in
+        ``per_seed``, so statistics added to ``compute_metrics`` flow through.
     """
     if predictor_cols is None:
         predictor_cols = [c for c in dataset.columns if c not in ("date", target_col)]
@@ -214,10 +212,12 @@ def run_grid(
     seed_results = Parallel(n_jobs=n_jobs)(delayed(_one_seed)(s) for s in seeds)
 
     per_seed = pd.DataFrame([row for rows in seed_results for row in rows])
+    # c is constant within each (P, z) group, so it averages through unchanged;
+    # no separate statistic-column list to keep in sync with compute_metrics.
     averaged = (
-        per_seed.groupby(["P", "z"], sort=False)[list(_STAT_COLUMNS)]
+        per_seed.drop(columns="seed")
+        .groupby(["P", "z"], sort=False)
         .mean()
         .reset_index()
     )
-    averaged["c"] = averaged["P"] / T
     return per_seed, averaged

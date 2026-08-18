@@ -72,8 +72,12 @@ def alpha_ir_tstat(strategy_returns, market_returns, periods_per_year=PERIODS_PE
     return alpha, information_ratio, alpha_tstat
 
 
-def compute_metrics(forecasts, realized, beta_norms, periods_per_year=PERIODS_PER_YEAR):
+def compute_metrics(forecasts, realized, beta_norms):
     """Assemble the full statistic set for ONE (seed, P, z) model.
+
+    Annualization is fixed at PERIODS_PER_YEAR (monthly data, the paper's
+    convention); the standalone sharpe_ratio/alpha_ir_tstat utilities keep the
+    parameter for other frequencies.
 
     Parameters
     ----------
@@ -94,15 +98,13 @@ def compute_metrics(forecasts, realized, beta_norms, periods_per_year=PERIODS_PE
     forecasts = np.asarray(forecasts, dtype=np.float64)
     realized = np.asarray(realized, dtype=np.float64)
     strategy = forecasts * realized
-    alpha, information_ratio, alpha_tstat = alpha_ir_tstat(
-        strategy, realized, periods_per_year
-    )
+    alpha, information_ratio, alpha_tstat = alpha_ir_tstat(strategy, realized)
     return {
         "r2": float(oos_r2(forecasts, realized)),
         "beta_norm": float(np.mean(beta_norms)),
         "mean_return": float(strategy.mean()),
         "volatility": float(strategy.std()),
-        "sharpe": float(sharpe_ratio(strategy, periods_per_year)),
+        "sharpe": float(sharpe_ratio(strategy)),
         "alpha": float(alpha),
         "information_ratio": float(information_ratio),
         "alpha_tstat": float(alpha_tstat),
