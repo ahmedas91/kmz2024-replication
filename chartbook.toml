@@ -74,6 +74,16 @@ docs_path = "docs_src/dataframes/oos_grid_T12_per_seed.md"
 [charts]
 
 
+[charts.figure7]
+name = "Figure 7: OOS market timing performance (T = 12)"
+description = "Replication of the paper's Figure 7: OOS R2, mean beta norm, timing-strategy expected return, and volatility versus model complexity c = P/T, one line per ridge shrinkage level."
+dataframe = "oos_grid_T12"
+tags = ["figure", "replication", "oos"]
+frequency = "monthly"
+path = "_output/figure7.png"
+docs_path = "docs_src/charts/figure7.md"
+
+
 [charts.predictor_timeseries]
 name = "Standardized predictor time series"
 description = "Small-multiples overview of the volatility-standardized market excess return and the 15 KMZ predictors, 1930 onward."

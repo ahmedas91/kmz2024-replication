@@ -184,6 +184,27 @@ def task_estimate():
     }
 
 
+def task_figure7():
+    """Replicate the paper's Figure 7 from the cached OOS grid"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure7.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/figure7.py",
+            AVERAGED_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / "figure7.png",
+            OUTPUT_DIR / "figure7.pdf",
+            OUTPUT_DIR / "figure7_data.parquet",
+        ],
+        "clean": True,
+    }
+
+
 def task_template_examples():
     """Run the project template's demo scripts (example LaTeX docs need them)"""
     file_dep = [
