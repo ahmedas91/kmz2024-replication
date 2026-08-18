@@ -1,9 +1,13 @@
 """Tests for the recursive OOS engine (issue #7).
 
 Synthetic; no data on disk. They pin the engine's correctness: the dual-form
-recursion reproduces an explicit window-by-window primal ridge, forecasts use no
-future information, a known linear signal is recovered as positive OOS R^2, the
-grid output has the right schema, and a fixed seed list is deterministic.
+recursion reproduces an explicit window-by-window primal ridge (the shared
+reference from test_kernel_ridge, so both suites pin the SAME normalization),
+forecasts use no future information while later forecasts do respond to it,
+a known linear signal is recovered as positive OOS R^2, the grid output has
+the right schema, degenerate inputs are rejected, and a fixed seed list is
+deterministic. Each test seeds its own generator, so tests stay independent
+of execution order and subsets.
 """
 
 import numpy as np
@@ -12,15 +16,7 @@ import pytest
 
 from voc.oos_engine import run_grid, run_recursive_oos
 from voc.rff import compute_rff, draw_rff_weights, standardize_by_training_window
-
-RNG = np.random.default_rng(707)
-
-
-def _ridge_primal(S, R, z):
-    """Independent primal-space reference for the KMZ estimator."""
-    n_obs, n_feat = S.shape
-    A = z * np.eye(n_feat) + S.T @ S / n_obs
-    return np.linalg.solve(A, S.T @ R / n_obs)
+from voc.test_kernel_ridge import _ridge_primal
 
 
 def _synthetic_dataset(n, d, seed=0):
@@ -37,9 +33,10 @@ def _synthetic_dataset(n, d, seed=0):
 
 def test_dual_recursion_matches_brute_force_primal():
     """The engine's forecasts equal explicit window-by-window primal ridge."""
+    rng = np.random.default_rng(707)
     n, d, T = 60, 3, 12
-    G = RNG.standard_normal((n, d))
-    R = RNG.standard_normal(n)
+    G = rng.standard_normal((n, d))
+    R = rng.standard_normal(n)
     p_grid, z_grid = (2, 8), (1e-2, 1.0)
 
     _, out = run_recursive_oos(
@@ -63,10 +60,14 @@ def test_dual_recursion_matches_brute_force_primal():
 
 
 def test_no_lookahead_in_forecasts():
-    """Perturbing returns from month k on leaves every earlier forecast unchanged."""
+    """Perturbing returns from month k on leaves every earlier forecast unchanged
+    AND moves the forecasts whose training windows include the perturbed months.
+    The second leg keeps this test two-sided: an engine that ignored training
+    returns altogether would pass the first assertion alone."""
+    rng = np.random.default_rng(708)
     n, d, T, k = 60, 4, 12, 45
-    G = RNG.standard_normal((n, d))
-    R = RNG.standard_normal(n)
+    G = rng.standard_normal((n, d))
+    R = rng.standard_normal(n)
     R_future = R.copy()
     R_future[k:] += 10.0
 
@@ -84,15 +85,21 @@ def test_no_lookahead_in_forecasts():
         perturbed["forecasts"][(8, 1.0)][:unaffected],
         rtol=1e-12,
     )
+    affected = np.abs(
+        base["forecasts"][(8, 1.0)][unaffected:]
+        - perturbed["forecasts"][(8, 1.0)][unaffected:]
+    )
+    assert affected.min() > 0.0  # every later window trains on a changed return
 
 
 def test_known_signal_recovers_positive_r2():
     """When R[t+1] is an exact linear function of the RFFs of G[t], a
     correctly-sized model recovers it as a strongly positive OOS R^2."""
+    rng = np.random.default_rng(709)
     n, d, T, P, seed = 80, 3, 12, 8, 9
-    G = RNG.standard_normal((n, d))
+    G = rng.standard_normal((n, d))
     S = compute_rff(G, draw_rff_weights(P // 2, d, seed))
-    beta_true = RNG.standard_normal(P)
+    beta_true = rng.standard_normal(P)
     R = np.empty(n)
     R[0] = 0.0
     R[1:] = S[:-1] @ beta_true  # R[t+1] = S[t] @ beta_true
@@ -125,6 +132,9 @@ def test_grid_schema_and_finite_and_ridgeless_column():
     # 3 P values x (3 z + ridgeless) models, averaged across seeds.
     assert len(averaged) == len(p_grid) * (len(z_grid) + 1)
     assert (averaged["z"] == 0.0).any()  # ridgeless present
+    # Every per-seed statistic (c included) must survive into the averaged
+    # frame; only the seed key is dropped.
+    assert set(averaged.columns) == set(per_seed.columns) - {"seed"}
 
 
 def test_determinism_same_seed_list():
