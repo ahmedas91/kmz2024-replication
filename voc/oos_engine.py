@@ -34,10 +34,12 @@ sample floor. Do not "restore" it by starting at ``t = T - 1``: feature row
 
 The ridgeless (``z -> 0`` minimum-norm) column is recorded as ``z = 0.0``.
 
-RFF standardization uses the UNCENTERED training-window convention by default
-(``uncentered=True``), the pin promised in :mod:`voc.rff`; the kwarg on
-:func:`run_recursive_oos` / :func:`run_grid` exists so the centered variant
-can be A/B-checked against the paper's figure anchors (issues #8/#9).
+RFF standardization uses the CENTERED training-window convention by default
+(``uncentered=False``), pinned by the issue #9 anchor investigation: centered
+scaling plus the workbook market series reproduces the paper's Figure 8
+ridgeless anchors within ~1% (see :func:`voc.rff.standardize_by_training_window`).
+The kwarg on :func:`run_recursive_oos` / :func:`run_grid` is retained for A/B
+checks against the uncentered variant.
 """
 
 from __future__ import annotations
@@ -70,7 +72,7 @@ def run_recursive_oos(
     z_grid=Z_GRID_DEFAULT,
     gamma=GAMMA_DEFAULT,
     include_ridgeless=True,
-    uncentered=True,
+    uncentered=False,
     return_forecasts=False,
 ):
     """One repetition (one RFF seed) of the recursive OOS analysis.
@@ -92,8 +94,8 @@ def run_recursive_oos(
     uncentered : bool
         RFF training-window standardization convention (see
         :func:`voc.rff.standardize_by_training_window`). The pipeline pins the
-        uncentered default; the kwarg exists so the centered variant can be
-        A/B-checked against the paper's Figure 7/8 anchors (issues #8/#9).
+        CENTERED default (uncentered=False), validated against the paper's
+        Figure 8 anchors in issue #9; the kwarg is retained for A/B checks.
     return_forecasts : bool
         Additionally return the per-``(P, z)`` forecast and realized-return series.
 
@@ -192,7 +194,7 @@ def run_grid(
     seeds=range(50),
     gamma=GAMMA_DEFAULT,
     include_ridgeless=True,
-    uncentered=True,
+    uncentered=False,
     n_jobs=1,
 ):
     """Run the recursive OOS grid across seeds; return long-format statistics.

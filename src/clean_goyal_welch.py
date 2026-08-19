@@ -22,12 +22,18 @@ Conventions:
    and Zafirov (2024) date convention (inflation for month t counts as
    time-t information), which the paper adopts in footnote 33. Do not add
    another lag on top.
- - Target: mkt_excess = vwretd - Rfree, subtracted on the same row. vwretd
-   is the CRSP value-weighted return including dividends; Rfree at row t is
-   the workbook's risk-free return over month t. The paper names the target
-   ("the monthly excess return of the CRSP value-weighted index") without
-   specifying the risk-free series; this is the standard Goyal-Welch
-   equity-premium construction.
+ - Target: mkt_excess = ret - Rfree, subtracted on the same row. `ret` is
+   the workbook's own CRSP market return series including dividends (named
+   `CRSP_SPvw` in pre-2022 vintages, unrevised across vintages) and Rfree at
+   row t is the workbook's risk-free return over month t: the standard
+   Goyal-Welch equity-premium construction. The paper says "the monthly
+   excess return of the CRSP value-weighted index"; the issue #9 anchor
+   investigation showed this workbook series is what the paper's numbers
+   are built on (with it, the Figure 8 ridgeless anchors land within ~1%:
+   alpha t-stat 2.78 vs 2.81, IR 0.297 vs 0.296, while the WRDS
+   total-market vwretd leaves the alpha t-stat at 2.17). The WRDS CRSP pull
+   remains a REQUIRED build-time cross-check: construction fails loudly if
+   the two excess-return series stop tracking each other.
  - Timing: row t holds values known at the end of month t and forecasts the
    month t+1 return. `lag_mkt_excess` therefore EQUALS `mkt_excess` on the
    same row; the model layer applies the single uniform shift when it pairs
@@ -47,9 +53,9 @@ import numpy as np
 import pandas as pd
 from pandas.tseries.offsets import MonthEnd
 
-from settings import config
 from pull_CRSP_stock import load_CRSP_index_files
 from pull_goyal_welch import load_goyal_welch
+from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 
@@ -99,7 +105,7 @@ def build_kmz_dataset(gw=None, msix=None, data_dir=DATA_DIR):
     )
 
     out = pd.DataFrame({"date": df["date"]})
-    out["mkt_excess"] = df["vwretd"] - df["Rfree"]
+    out["mkt_excess"] = df["ret"] - df["Rfree"]
     out["dfy"] = df["BAA"] - df["AAA"]
     out["infl"] = df["infl"]
     out["svar"] = df["svar"]
@@ -116,7 +122,19 @@ def build_kmz_dataset(gw=None, msix=None, data_dir=DATA_DIR):
     out["ntis"] = df["ntis"]
     out["lag_mkt_excess"] = out["mkt_excess"]
 
-    out = out.loc[df["vwretd"].notna()].reset_index(drop=True)
+    # WRDS CRSP cross-check (required): the workbook target must track the
+    # independently pulled value-weighted excess return, or something is wrong
+    # with one of the raw pulls.
+    wrds_excess = df["vwretd"] - df["Rfree"]
+    overlap = out["mkt_excess"].notna() & wrds_excess.notna()
+    corr = out.loc[overlap, "mkt_excess"].corr(wrds_excess[overlap])
+    if not corr > 0.98:
+        raise ValueError(
+            "workbook and WRDS CRSP excess returns diverge "
+            f"(corr={corr:.4f} over {int(overlap.sum())} months); check the raw pulls"
+        )
+
+    out = out.loc[df["vwretd"].notna() & df["ret"].notna()].reset_index(drop=True)
     return out[["date", "mkt_excess"] + PREDICTOR_COLUMNS]
 
 
