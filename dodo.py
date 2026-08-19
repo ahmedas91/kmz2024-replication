@@ -21,6 +21,7 @@ from doit.tools import config_changed
 # here keeps the build graph and the script from ever disagreeing. The module
 # is import-light by design (no pandas/engine imports at top level).
 from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH, SAMPLE_END
+from run_variable_importance import FIG11_N_SEEDS, VI_PATH
 from settings import config
 
 DOIT_CONFIG = {"backend": "sqlite3", "dep_file": "./.doit-db.sqlite"}
@@ -223,6 +224,58 @@ def task_figure8():
             OUTPUT_DIR / "figure8.png",
             OUTPUT_DIR / "figure8.pdf",
             OUTPUT_DIR / "figure8_data.parquet",
+        ],
+        "clean": True,
+    }
+
+
+def task_variable_importance():
+    """Run the Figure 11 leave-one-out estimations (full model + 15 exclusions)"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/run_variable_importance.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/run_variable_importance.py",
+            "./voc/__init__.py",
+            "./voc/oos_engine.py",
+            "./voc/performance_metrics.py",
+            "./voc/rff.py",
+            "./voc/kernel_ridge.py",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+        ],
+        "targets": [VI_PATH],
+        # TRAIN_WINDOW is visible through the target filename; FIG11_N_SEEDS
+        # and SAMPLE_END are not, so track them explicitly or a changed .env
+        # would silently reuse a stale cache.
+        "uptodate": [
+            config_changed(
+                {"FIG11_N_SEEDS": str(FIG11_N_SEEDS), "SAMPLE_END": str(SAMPLE_END)}
+            )
+        ],
+        "clean": [],
+    }
+
+
+def task_figure11():
+    """Replicate the paper's Figure 11 from the cached variable-importance runs"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure11.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/figure11.py",
+            "./src/figure_style.py",
+            VI_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / "figure11.png",
+            OUTPUT_DIR / "figure11.pdf",
+            OUTPUT_DIR / "figure11_data.parquet",
         ],
         "clean": True,
     }
