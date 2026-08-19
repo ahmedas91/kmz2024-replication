@@ -8,10 +8,12 @@ What is pinned, panel by panel:
 
 - Panel A: the low-shrinkage OOS R^2 is negative everywhere short of extreme
   complexity, collapses to its minimum exactly AT the interpolation boundary
-  c = 1, and recovers monotonically toward zero beyond it, ending within
-  +/- 0.01 of zero at c = 1000. Note the direction: complexity hurts R^2 on
-  the way INTO the boundary; past it the R^2 RISES back toward zero (paper
-  Panel A) while trading performance keeps improving. That inversion is the
+  c = 1, and recovers monotonically beyond it, crossing to a SMALL POSITIVE
+  value (under 0.01) by c = 1000 — the paper's "high complexity and
+  regularization together produce a positive out-of-sample R^2" claim, where
+  at low z the regularization arrives implicitly through high c. Note the
+  direction: complexity hurts R^2 on the way INTO the boundary; past it the
+  R^2 RISES while trading performance keeps improving. That inversion is the
   paper's point; do not "fix" the negative R^2.
 - Panel B: ||beta_hat|| spikes at c = 1 for low z and falls by orders of
   magnitude at extreme complexity; heavy shrinkage flattens the spike away
@@ -72,15 +74,15 @@ def test_grid_has_expected_structure():
 @requires_data
 def test_r2_negative_with_collapse_at_boundary_and_recovery():
     """Panel A for low z: minimum exactly at c = 1 and deeply negative there,
-    negative through c = 512, monotone recovery beyond the boundary, and
-    within 0.01 of zero at c = 1000."""
+    negative through c = 256, monotone recovery beyond the boundary, and a
+    small POSITIVE value (under 0.01) at c = 1000."""
     for z in LOW_Z:
         r2 = _line(z, "r2")
         assert r2.idxmin() == 1.0
         assert r2.loc[1.0] < -3.0
-        assert (r2.loc[:512] < 0).all()
+        assert (r2.loc[:256] < 0).all()
         assert (np.diff(r2.loc[1.0:]) > 0).all()
-        assert abs(r2.loc[1000]) < 0.01
+        assert 0.0 < r2.loc[1000] < 0.01
 
 
 @requires_data

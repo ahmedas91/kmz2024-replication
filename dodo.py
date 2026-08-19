@@ -194,12 +194,35 @@ def task_figure7():
         "file_dep": [
             "./src/settings.py",
             "./src/figure7.py",
+            "./src/figure_style.py",
             AVERAGED_PATH,
         ],
         "targets": [
             OUTPUT_DIR / "figure7.png",
             OUTPUT_DIR / "figure7.pdf",
             OUTPUT_DIR / "figure7_data.parquet",
+        ],
+        "clean": True,
+    }
+
+
+def task_figure8():
+    """Replicate the paper's Figure 8 from the cached OOS grid"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure8.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/figure8.py",
+            "./src/figure_style.py",
+            AVERAGED_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / "figure8.png",
+            OUTPUT_DIR / "figure8.pdf",
+            OUTPUT_DIR / "figure8_data.parquet",
         ],
         "clean": True,
     }
