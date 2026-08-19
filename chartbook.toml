@@ -71,6 +71,18 @@ path = "_data/oos_grid_T12_per_seed.parquet"
 docs_path = "docs_src/dataframes/oos_grid_T12_per_seed.md"
 
 
+[dataframes.variable_importance_T12]
+name = "Variable-importance runs (T = 12)"
+description = "Per-seed OOS statistics of the 16 Figure 11 estimations at P = 12,000, z = 1000: the full 15-predictor model plus one leave-one-out model per predictor, tagged by the excluded column. The cache behind the Figure 11 replication."
+sources = ["kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["oos", "variable-importance", "statistics", "replication"]
+pull_method = "doit variable_importance (src/run_variable_importance.py driving voc/oos_engine.py)"
+path = "_data/variable_importance_T12.parquet"
+docs_path = "docs_src/dataframes/variable_importance_T12.md"
+
+
 [charts]
 
 
@@ -92,6 +104,16 @@ tags = ["figure", "replication", "oos"]
 frequency = "monthly"
 path = "_output/figure8.png"
 docs_path = "docs_src/charts/figure8.md"
+
+
+[charts.figure11]
+name = "Figure 11: variable importance (T = 12)"
+description = "Replication of the paper's Figure 11: variable importance for each of the 15 predictors, the change in OOS R2 (bars) and Sharpe ratio (line) moving from the full model to a re-estimated model excluding the variable, at P = 12,000, z = 1000."
+dataframe = "variable_importance_T12"
+tags = ["figure", "replication", "variable-importance"]
+frequency = "monthly"
+path = "_output/figure11.png"
+docs_path = "docs_src/charts/figure11.md"
 
 
 [charts.predictor_timeseries]
