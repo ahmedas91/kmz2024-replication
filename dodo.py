@@ -15,6 +15,12 @@ import shutil
 from os import environ
 from pathlib import Path
 
+from doit.tools import config_changed
+
+# The estimation driver owns its output paths and run config; importing them
+# here keeps the build graph and the script from ever disagreeing. The module
+# is import-light by design (no pandas/engine imports at top level).
+from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH, SAMPLE_END
 from settings import config
 
 DOIT_CONFIG = {"backend": "sqlite3", "dep_file": "./.doit-db.sqlite"}
@@ -25,10 +31,10 @@ DATA_DIR = config("DATA_DIR")
 MANUAL_DATA_DIR = config("MANUAL_DATA_DIR")
 OUTPUT_DIR = config("OUTPUT_DIR")
 OS_TYPE = config("OS_TYPE")
-TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
 ## Helpers for handling Jupyter Notebook tasks
 environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
+
 
 # fmt: off
 ## Helper functions for automatic execution of Jupyter notebooks
@@ -152,8 +158,6 @@ def task_standardize():
 
 def task_estimate():
     """Run the recursive OOS grid on the standardized dataset (the voc engine)"""
-    grid = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}.parquet"
-    per_seed = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}_per_seed.parquet"
     return {
         "actions": [
             "python ./src/settings.py",
@@ -162,14 +166,42 @@ def task_estimate():
         "file_dep": [
             "./src/settings.py",
             "./src/run_estimation.py",
+            "./voc/__init__.py",
             "./voc/oos_engine.py",
             "./voc/performance_metrics.py",
             "./voc/rff.py",
             "./voc/kernel_ridge.py",
             DATA_DIR / "kmz_dataset_standardized.parquet",
         ],
-        "targets": [grid, per_seed],
+        "targets": [AVERAGED_PATH, PER_SEED_PATH],
+        # TRAIN_WINDOW is visible through the target filenames; N_SEEDS and
+        # SAMPLE_END are not in any filename, so track them explicitly or a
+        # changed .env would silently reuse a stale grid.
+        "uptodate": [
+            config_changed({"N_SEEDS": str(N_SEEDS), "SAMPLE_END": str(SAMPLE_END)})
+        ],
         "clean": [],
+    }
+
+
+def task_figure7():
+    """Replicate the paper's Figure 7 from the cached OOS grid"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure7.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/figure7.py",
+            AVERAGED_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / "figure7.png",
+            OUTPUT_DIR / "figure7.pdf",
+            OUTPUT_DIR / "figure7_data.parquet",
+        ],
+        "clean": True,
     }
 
 
@@ -243,7 +275,7 @@ def task_run_notebooks():
     """Preps the notebooks for presentation format.
     Execute notebooks if the script version of it has been changed.
     """
-    for notebook in notebook_tasks.keys():
+    for notebook in notebook_tasks:
         pyfile_path = Path(notebook_tasks[notebook]["path"])
         notebook_path = pyfile_path.with_suffix("")  # strips .py, leaves .ipynb
         notebook_name = notebook_path.stem  # e.g. "01_example_notebook_interactive"
@@ -316,6 +348,7 @@ def task_compile_latex_docs():
         "clean": True,
     }
 
+
 sphinx_targets = [
     "./docs/index.html",
 ]
@@ -324,8 +357,7 @@ sphinx_targets = [
 def task_build_chartbook_site():
     """Compile Sphinx Docs"""
     notebook_scripts = [
-        Path(notebook_tasks[notebook]["path"])
-        for notebook in notebook_tasks.keys()
+        Path(notebook_tasks[notebook]["path"]) for notebook in notebook_tasks
     ]
     file_dep = [
         "./README.md",
@@ -348,7 +380,11 @@ def task_build_chartbook_site():
 
 def task_run_pytest():
     """Run pytest and save results to OUTPUT_DIR"""
-    src_py_files = list(Path("./src").glob("*.py")) + list(Path("./voc").glob("*.py"))
+    # Every directory pytest collects from; extend this tuple when a new code
+    # package appears so editing its tests retriggers the task.
+    tested_py_files = [
+        path for folder in ("./src", "./voc") for path in Path(folder).glob("*.py")
+    ]
     test_output = OUTPUT_DIR / "pytest_results.xml"
 
     def run_pytest():
@@ -356,6 +392,7 @@ def task_run_pytest():
 
         result = subprocess.run(
             ["pytest", f"--junitxml={test_output}"],
+            check=False,  # the returncode is inspected below
         )
         if result.returncode != 0:
             # Remove the XML so doit won't consider the target up-to-date
@@ -365,7 +402,7 @@ def task_run_pytest():
     return {
         "actions": [run_pytest],
         "targets": [test_output],
-        "file_dep": src_py_files,
+        "file_dep": tested_py_files,
         "clean": True,
         "verbosity": 2,
     }

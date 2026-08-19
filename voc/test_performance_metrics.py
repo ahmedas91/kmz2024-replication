@@ -1,9 +1,9 @@
 """Tests for the performance-metrics module (issue #7).
 
-Hand-computed on tiny arrays so the formulas — OOS R^2 (with the paper's
-zero-forecast benchmark), Sharpe, and the alpha/IR/t-stat OLS — are pinned
-exactly. The OLS point estimates are cross-checked against ``numpy.polyfit``, an
-independent least-squares route.
+Hand-computed on tiny arrays so the formulas — the centered-variance OOS R^2
+(footnote 40, invariant to constant forecasts), Sharpe, and the alpha/IR/t-stat
+OLS — are pinned exactly. The OLS point estimates are cross-checked against
+``numpy.polyfit``, an independent least-squares route.
 """
 
 import numpy as np
@@ -16,10 +16,15 @@ from voc.performance_metrics import (
 )
 
 
-def test_zero_forecast_scores_r2_zero():
-    """The zero forecast is the benchmark, so its R^2 is exactly 0 (footnote 40)."""
+def test_constant_forecasts_score_r2_zero():
+    """Centered variances make oos_r2 invariant to constant forecasts: zero and
+    any other constant score exactly 0, and a pure constant bias on an otherwise
+    perfect forecast is forgiven (footnote 40). This pins the convention so it
+    is not 'normalized' to the uncentered zero-benchmark form."""
     realized = np.array([0.1, -0.2, 0.05, -0.03, 0.08])
     assert abs(oos_r2(np.zeros_like(realized), realized)) < 1e-15
+    assert abs(oos_r2(np.full_like(realized, 100.0), realized)) < 1e-6
+    assert abs(oos_r2(realized + 0.5, realized) - 1.0) < 1e-12
 
 
 def test_perfect_forecast_scores_r2_one():
@@ -51,7 +56,7 @@ def test_alpha_ir_tstat_against_polyfit():
     resid = y - (intercept_pf + slope_pf * x)
     n, xbar, sxx = y.size, x.mean(), np.sum((x - x.mean()) ** 2)
     expected_ir = np.sqrt(12.0) * intercept_pf / resid.std()
-    expected_se = np.sqrt(np.sum(resid ** 2) / (n - 2) * (1.0 / n + xbar ** 2 / sxx))
+    expected_se = np.sqrt(np.sum(resid**2) / (n - 2) * (1.0 / n + xbar**2 / sxx))
 
     assert np.isclose(alpha, intercept_pf)
     assert np.isclose(information_ratio, expected_ir)
@@ -68,8 +73,14 @@ def test_compute_metrics_keys_and_consistency():
 
     m = compute_metrics(forecasts, realized, beta_norms)
     for key in (
-        "r2", "beta_norm", "mean_return", "volatility", "sharpe",
-        "alpha", "information_ratio", "alpha_tstat",
+        "r2",
+        "beta_norm",
+        "mean_return",
+        "volatility",
+        "sharpe",
+        "alpha",
+        "information_ratio",
+        "alpha_tstat",
     ):
         assert key in m and np.isfinite(m[key])
     assert np.isclose(m["r2"], oos_r2(forecasts, realized))
