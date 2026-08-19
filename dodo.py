@@ -17,11 +17,15 @@ from pathlib import Path
 
 from doit.tools import config_changed
 
-# The estimation driver owns its output paths and run config; importing them
-# here keeps the build graph and the script from ever disagreeing. The module
-# is import-light by design (no pandas/engine imports at top level).
-from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH, SAMPLE_END
+# The estimation drivers own their output paths and run config; importing them
+# here keeps the build graph and the scripts from ever disagreeing. The modules
+# are import-light by design (no pandas/engine imports at top level).
+# SAMPLE_SUFFIX names the period-dependent artifacts: empty for the paper
+# period, "_{SAMPLE_END}" otherwise, so a paper run and an updated-sample run
+# coexist (see src/sample_period.py).
+from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH
 from run_variable_importance import FIG11_N_SEEDS, VI_PATH
+from sample_period import SAMPLE_SUFFIX
 from settings import config
 
 DOIT_CONFIG = {"backend": "sqlite3", "dep_file": "./.doit-db.sqlite"}
@@ -166,6 +170,7 @@ def task_estimate():
         ],
         "file_dep": [
             "./src/settings.py",
+            "./src/sample_period.py",
             "./src/run_estimation.py",
             "./voc/__init__.py",
             "./voc/oos_engine.py",
@@ -175,12 +180,10 @@ def task_estimate():
             DATA_DIR / "kmz_dataset_standardized.parquet",
         ],
         "targets": [AVERAGED_PATH, PER_SEED_PATH],
-        # TRAIN_WINDOW is visible through the target filenames; N_SEEDS and
-        # SAMPLE_END are not in any filename, so track them explicitly or a
-        # changed .env would silently reuse a stale grid.
-        "uptodate": [
-            config_changed({"N_SEEDS": str(N_SEEDS), "SAMPLE_END": str(SAMPLE_END)})
-        ],
+        # TRAIN_WINDOW and SAMPLE_END are visible through the target
+        # filenames; N_SEEDS is not, so track it explicitly or a changed
+        # .env would silently reuse a stale grid.
+        "uptodate": [config_changed({"N_SEEDS": str(N_SEEDS)})],
         "clean": [],
     }
 
@@ -194,14 +197,15 @@ def task_figure7():
         ],
         "file_dep": [
             "./src/settings.py",
+            "./src/sample_period.py",
             "./src/figure7.py",
             "./src/figure_style.py",
             AVERAGED_PATH,
         ],
         "targets": [
-            OUTPUT_DIR / "figure7.png",
-            OUTPUT_DIR / "figure7.pdf",
-            OUTPUT_DIR / "figure7_data.parquet",
+            OUTPUT_DIR / f"figure7{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure7{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure7_data{SAMPLE_SUFFIX}.parquet",
         ],
         "clean": True,
     }
@@ -216,14 +220,15 @@ def task_figure8():
         ],
         "file_dep": [
             "./src/settings.py",
+            "./src/sample_period.py",
             "./src/figure8.py",
             "./src/figure_style.py",
             AVERAGED_PATH,
         ],
         "targets": [
-            OUTPUT_DIR / "figure8.png",
-            OUTPUT_DIR / "figure8.pdf",
-            OUTPUT_DIR / "figure8_data.parquet",
+            OUTPUT_DIR / f"figure8{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure8{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure8_data{SAMPLE_SUFFIX}.parquet",
         ],
         "clean": True,
     }
@@ -238,6 +243,7 @@ def task_variable_importance():
         ],
         "file_dep": [
             "./src/settings.py",
+            "./src/sample_period.py",
             "./src/run_variable_importance.py",
             "./voc/__init__.py",
             "./voc/oos_engine.py",
@@ -247,14 +253,10 @@ def task_variable_importance():
             DATA_DIR / "kmz_dataset_standardized.parquet",
         ],
         "targets": [VI_PATH],
-        # TRAIN_WINDOW is visible through the target filename; FIG11_N_SEEDS
-        # and SAMPLE_END are not, so track them explicitly or a changed .env
-        # would silently reuse a stale cache.
-        "uptodate": [
-            config_changed(
-                {"FIG11_N_SEEDS": str(FIG11_N_SEEDS), "SAMPLE_END": str(SAMPLE_END)}
-            )
-        ],
+        # TRAIN_WINDOW and SAMPLE_END are visible through the target
+        # filename; FIG11_N_SEEDS is not, so track it explicitly or a
+        # changed .env would silently reuse a stale cache.
+        "uptodate": [config_changed({"FIG11_N_SEEDS": str(FIG11_N_SEEDS)})],
         "clean": [],
     }
 
@@ -268,14 +270,15 @@ def task_figure11():
         ],
         "file_dep": [
             "./src/settings.py",
+            "./src/sample_period.py",
             "./src/figure11.py",
             "./src/figure_style.py",
             VI_PATH,
         ],
         "targets": [
-            OUTPUT_DIR / "figure11.png",
-            OUTPUT_DIR / "figure11.pdf",
-            OUTPUT_DIR / "figure11_data.parquet",
+            OUTPUT_DIR / f"figure11{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure11{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure11_data{SAMPLE_SUFFIX}.parquet",
         ],
         "clean": True,
     }
@@ -312,6 +315,7 @@ def task_summary_stats():
     """Generate summary statistics tables and plots"""
     file_dep = [
         "./src/settings.py",
+        "./src/sample_period.py",
         "./src/table_predictor_summary.py",
         "./src/plot_predictor_timeseries.py",
         "./src/clean_goyal_welch.py",
@@ -320,9 +324,9 @@ def task_summary_stats():
         DATA_DIR / "kmz_dataset_standardized.parquet",
     ]
     file_output = [
-        "predictor_summary_table.tex",
-        "predictor_timeseries.png",
-        "predictor_timeseries.pdf",
+        f"predictor_summary_table{SAMPLE_SUFFIX}.tex",
+        f"predictor_timeseries{SAMPLE_SUFFIX}.png",
+        f"predictor_timeseries{SAMPLE_SUFFIX}.pdf",
     ]
     targets = [OUTPUT_DIR / file for file in file_output]
 

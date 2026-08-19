@@ -33,13 +33,16 @@ from figure_style import (
     finish_broken_pair,
     z_line_label,
 )
+from sample_period import SAMPLE_SUFFIX
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
-GRID_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}.parquet"
+# SAMPLE_SUFFIX is empty for the paper period; an updated-sample run reads
+# and writes its own suffixed artifact set (see sample_period).
+GRID_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}.parquet"
 
 PANELS = (
     ("sharpe", "Panel A: Sharpe Ratio"),
@@ -143,13 +146,14 @@ def plot_figure8(panel_data, output_stem):
 def main():
     panel_data = load_panel_data()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    panel_data.to_parquet(OUTPUT_DIR / "figure8_data.parquet")
-    plot_figure8(panel_data, OUTPUT_DIR / "figure8")
+    panel_data.to_parquet(OUTPUT_DIR / f"figure8_data{SAMPLE_SUFFIX}.parquet")
+    plot_figure8(panel_data, OUTPUT_DIR / f"figure8{SAMPLE_SUFFIX}")
     ridgeless_anchor = panel_data.loc[
         (panel_data["z"] == 0.0) & (panel_data["P"] == panel_data["P"].max())
     ].iloc[0]
     print(
-        f"[figure8] wrote figure8.png/.pdf and figure8_data.parquet; ridgeless "
+        f"[figure8] wrote figure8{SAMPLE_SUFFIX}.png/.pdf and "
+        f"figure8_data{SAMPLE_SUFFIX}.parquet; ridgeless "
         f"c={ridgeless_anchor.c:g}: sharpe={ridgeless_anchor.sharpe:.3f}, "
         f"IR={ridgeless_anchor.information_ratio:.3f}, "
         f"alpha_t={ridgeless_anchor.alpha_tstat:.2f}"

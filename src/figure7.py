@@ -32,13 +32,16 @@ from figure_style import (
     finish_broken_pair,
     z_line_label,
 )
+from sample_period import SAMPLE_SUFFIX
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
-GRID_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}.parquet"
+# SAMPLE_SUFFIX is empty for the paper period; an updated-sample run reads
+# and writes its own suffixed artifact set (see sample_period).
+GRID_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}.parquet"
 
 PANELS = (
     ("r2", "Panel A: $R^2$"),
@@ -126,10 +129,11 @@ def plot_figure7(panel_data, output_stem):
 def main():
     panel_data = load_panel_data()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    panel_data.to_parquet(OUTPUT_DIR / "figure7_data.parquet")
-    plot_figure7(panel_data, OUTPUT_DIR / "figure7")
+    panel_data.to_parquet(OUTPUT_DIR / f"figure7_data{SAMPLE_SUFFIX}.parquet")
+    plot_figure7(panel_data, OUTPUT_DIR / f"figure7{SAMPLE_SUFFIX}")
     print(
-        f"[figure7] wrote figure7.png/.pdf and figure7_data.parquet "
+        f"[figure7] wrote figure7{SAMPLE_SUFFIX}.png/.pdf and "
+        f"figure7_data{SAMPLE_SUFFIX}.parquet "
         f"({len(panel_data)} rows, {panel_data['z'].nunique()} z lines)"
     )
 

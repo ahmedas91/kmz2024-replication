@@ -6,17 +6,20 @@ order, so the persistence split reads at a glance: the valuation ratios and
 yields drift slowly while the return-type series (mkt excess, ltr, dfr,
 lag mkt) oscillate at high frequency. Panels share the time axis but scale
 their own y-axis, because standardization equalizes volatility units, not
-levels (dp sits near -10 while lty reaches +20). Writes
-``_output/predictor_timeseries.png`` and a ``.pdf`` twin for LaTeX.
+levels (dp sits near -10 while lty reaches +20). The sample is trimmed to
+the configured ``SAMPLE_END``; a non-paper period writes a suffixed file
+alongside the paper one (see ``sample_period``). Writes
+``_output/predictor_timeseries{suffix}.png`` and a ``.pdf`` twin for LaTeX.
 """
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from sample_period import SAMPLE_SUFFIX
 from settings import config
 from standardize_kmz import load_standardized_dataset
-from table_predictor_summary import DISPLAY_NAMES, SERIES_COLUMNS
+from table_predictor_summary import DISPLAY_NAMES, SERIES_COLUMNS, trim_to_sample
 
 DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
@@ -31,9 +34,7 @@ BASELINE = "#c3c2b7"
 
 def plot_predictor_grid(df, output_stem):
     """Render the 4x4 standardized-series grid and save png and pdf."""
-    fig, axes = plt.subplots(
-        4, 4, figsize=(10.0, 7.0), sharex=True, facecolor="white"
-    )
+    fig, axes = plt.subplots(4, 4, figsize=(10.0, 7.0), sharex=True, facecolor="white")
     dates = df["date"]
     for ax, column in zip(axes.flat, SERIES_COLUMNS):
         values = df[column]
@@ -60,5 +61,5 @@ def plot_predictor_grid(df, output_stem):
 
 
 if __name__ == "__main__":
-    df = load_standardized_dataset(data_dir=DATA_DIR)
-    plot_predictor_grid(df, OUTPUT_DIR / "predictor_timeseries")
+    df = trim_to_sample(load_standardized_dataset(data_dir=DATA_DIR))
+    plot_predictor_grid(df, OUTPUT_DIR / f"predictor_timeseries{SAMPLE_SUFFIX}")

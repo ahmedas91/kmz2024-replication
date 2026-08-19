@@ -13,16 +13,19 @@ Config (via ``.env`` / command line, so reruns need zero code edits):
   N_JOBS        joblib parallelism across seeds (default -1 = all cores)
   TRAIN_WINDOW  rolling training window T (default 12); embedded in the output
                 filenames, so different T values cache side by side
-  SAMPLE_END    last month (YYYY-MM) of the estimation sample. The default,
-                2020-12, is the paper's sample end (1,092 months from 1930-01),
-                so the cached statistics are comparable to Figures 7/8/11; set
-                e.g. 2024-12 for the updated-sample rerun. The standardized
-                parquet itself extends past the paper period.
+  SAMPLE_END    last month (YYYY-MM) of the estimation sample (see
+                ``sample_period``). The default, 2020-12, is the paper's
+                sample end (1,092 months from 1930-01) and writes the bare
+                canonical filenames; any other value (e.g. 2024-12 for the
+                updated-sample rerun) suffixes the output filenames with the
+                sample end, so both runs coexist. The standardized parquet
+                itself extends past the paper period.
 
 ``dodo.py`` imports the path and config constants from this module, so the
 build graph and the script can never disagree about filenames, and doit reruns
-the task when N_SEEDS or SAMPLE_END change. Keep module import light (no
-pandas/engine imports at top level) so that import stays cheap.
+the task when N_SEEDS changes (SAMPLE_END is visible in the filenames). Keep
+module import light (no pandas/engine imports at top level) so that stays
+cheap.
 """
 
 import sys
@@ -33,16 +36,16 @@ from pathlib import Path
 # (which puts src/, not the repo root, on sys.path). Proper packaging is issue #14.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from sample_period import SAMPLE_END, SAMPLE_SUFFIX
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 N_SEEDS = config("N_SEEDS", default=500, cast=int)
 N_JOBS = config("N_JOBS", default=-1, cast=int)
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
-SAMPLE_END = config("SAMPLE_END", default="2020-12", cast=str)
 
-AVERAGED_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}.parquet"
-PER_SEED_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}_per_seed.parquet"
+AVERAGED_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}.parquet"
+PER_SEED_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}_per_seed.parquet"
 
 
 def main():
