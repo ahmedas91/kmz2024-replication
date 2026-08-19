@@ -84,6 +84,16 @@ path = "_output/figure7.png"
 docs_path = "docs_src/charts/figure7.md"
 
 
+[charts.figure8]
+name = "Figure 8: Sharpe ratio, alpha, IR, alpha t-stat (T = 12)"
+description = "Replication of the paper's Figure 8, its crux result: market-timing Sharpe ratio, alpha, information ratio, and alpha t-statistic all rising with model complexity c = P/T, one line per ridge shrinkage level plus the ridgeless limit."
+dataframe = "oos_grid_T12"
+tags = ["figure", "replication", "oos"]
+frequency = "monthly"
+path = "_output/figure8.png"
+docs_path = "docs_src/charts/figure8.md"
+
+
 [charts.predictor_timeseries]
 name = "Standardized predictor time series"
 description = "Small-multiples overview of the volatility-standardized market excess return and the 15 KMZ predictors, 1930 onward."
