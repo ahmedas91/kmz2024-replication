@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from figure_style import (
+    BORDER,
     INK_MUTED,
     PAPER_LINE_COLORS,
     broken_axis_pair,
@@ -46,14 +47,16 @@ PANELS = (
     ("information_ratio", "Panel C: Information Ratio"),
     ("alpha_tstat", "Panel D: Alpha $t$-statistic"),
 )
-# The paper's plotted ranges (page 45); the frame stretches beyond these tops
-# only if the data demand it.
-FRAME_TOPS = {
-    "sharpe": 0.48,
-    "alpha": 0.026,
-    "information_ratio": 0.32,
-    "alpha_tstat": 3.0,
+# The paper's plotted ranges and tick units (page 45): top, step; tick labels
+# carry two decimals in every panel. The frame stretches beyond the paper's
+# top only if the data demand it.
+PAPER_YAXES = {
+    "sharpe": (0.48, 0.10),
+    "alpha": (0.025, 0.01),
+    "information_ratio": (0.32, 0.05),
+    "alpha_tstat": (3.0, 0.5),
 }
+YTICK_DECIMALS = 2
 RIDGELESS_STYLE = {
     "color": "#262523",
     "linewidth": 1.5,
@@ -77,11 +80,11 @@ def plot_figure8(panel_data, output_stem):
     outer = fig.add_gridspec(
         2, 2, left=0.065, right=0.985, top=0.95, bottom=0.08, hspace=0.36, wspace=0.16
     )
-    legend_axis = None
+    legend_axis = legend_tail = None
     for cell, (column, title) in enumerate(PANELS):
         ax_main, ax_tail = broken_axis_pair(fig, outer[cell // 2, cell % 2])
         if legend_axis is None:
-            legend_axis = ax_main
+            legend_axis, legend_tail = ax_main, ax_tail
         for z, color in zip(ridge_z, PAPER_LINE_COLORS):
             line = panel_data.loc[panel_data["z"] == z]
             for ax in (ax_main, ax_tail):
@@ -108,11 +111,30 @@ def plot_figure8(panel_data, output_stem):
             zorder=2,
             label="$c = 1$",
         )
-        top = max(FRAME_TOPS[column], 1.05 * panel_data[column].max())
-        finish_broken_pair(ax_main, ax_tail, title, (0.0, top))
-    # One legend for the whole figure, in Panel A as in the paper; the curves
-    # climb toward the upper right, so the lower right corner stays free.
-    legend_axis.legend(fontsize=7, frameon=False, loc="lower right")
+        paper_top, ytick_step = PAPER_YAXES[column]
+        top = max(paper_top, 1.05 * panel_data[column].max())
+        finish_broken_pair(
+            ax_main, ax_tail, title, (0.0, top), ytick_step, YTICK_DECIMALS
+        )
+    # One boxed legend in Panel A's lower-right corner, drawn at figure level
+    # so it may sit on top of the axis break and sliver, as in the paper; the
+    # curves climb toward the upper right, so that corner stays free of data.
+    handles, labels = legend_axis.get_legend_handles_labels()
+    anchor = (
+        legend_tail.get_position().x1 - 0.004,
+        legend_axis.get_position().y0 + 0.008,
+    )
+    fig.legend(
+        handles,
+        labels,
+        loc="lower right",
+        bbox_to_anchor=anchor,
+        fontsize=7,
+        edgecolor=BORDER,
+        facecolor="white",
+        framealpha=1.0,
+        fancybox=False,
+    )
     fig.savefig(f"{output_stem}.png", dpi=300)
     fig.savefig(f"{output_stem}.pdf")
     plt.close(fig)

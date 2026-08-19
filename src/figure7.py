@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from figure_style import (
+    BORDER,
     INK_MUTED,
     PAPER_LINE_COLORS,
     broken_axis_pair,
@@ -45,9 +46,16 @@ PANELS = (
     ("mean_return", "Panel C: Expected Return"),
     ("volatility", "Panel D: Volatility"),
 )
-# The paper's y-limits; Panel C scales to the data (its ceiling is not pinned
-# in the paper either).
-PAPER_YLIMS = {"r2": (-3.0, 0.1), "beta_norm": (0.0, 3.0), "volatility": (0.0, 5.0)}
+# The paper's y-frames, tick units, and label decimals, panel by panel:
+# (bottom, top), step, decimals. Panel C pins the paper's frame too, so the
+# ~25% forecast-scale offset in the level panels stays visible instead of
+# being rescaled away.
+PAPER_YAXES = {
+    "r2": ((-3.0, 0.1), 0.5, 1),
+    "beta_norm": ((0.0, 3.0), 0.5, 2),
+    "mean_return": ((0.0, 0.035), 0.01, 2),
+    "volatility": ((0.0, 5.0), 1.0, 2),
+}
 
 
 def load_panel_data(grid_path=GRID_PATH):
@@ -64,11 +72,11 @@ def plot_figure7(panel_data, output_stem):
     outer = fig.add_gridspec(
         2, 2, left=0.065, right=0.985, top=0.95, bottom=0.08, hspace=0.36, wspace=0.16
     )
-    legend_axis = None
+    legend_axis = legend_tail = None
     for cell, (column, title) in enumerate(PANELS):
         ax_main, ax_tail = broken_axis_pair(fig, outer[cell // 2, cell % 2])
         if legend_axis is None:
-            legend_axis = ax_main
+            legend_axis, legend_tail = ax_main, ax_tail
         for z, color in zip(z_values, PAPER_LINE_COLORS):
             line = panel_data.loc[panel_data["z"] == z]
             for ax in (ax_main, ax_tail):
@@ -88,10 +96,28 @@ def plot_figure7(panel_data, output_stem):
             zorder=2,
             label="$c = 1$",
         )
-        ylim = PAPER_YLIMS.get(column, (0.0, 1.15 * panel_data[column].max()))
-        finish_broken_pair(ax_main, ax_tail, title, ylim)
-    # One legend for the whole figure, in Panel A as in the paper.
-    legend_axis.legend(fontsize=7, frameon=False, loc="center right")
+        (bottom, top), ytick_step, decimals = PAPER_YAXES[column]
+        if column == "mean_return":  # never clip if a config change lifts it
+            top = max(top, 1.1 * panel_data[column].max())
+        finish_broken_pair(ax_main, ax_tail, title, (bottom, top), ytick_step, decimals)
+    # One boxed legend in Panel A's lower-right corner, drawn at figure level
+    # so it may sit on top of the axis break and sliver, as in the paper.
+    handles, labels = legend_axis.get_legend_handles_labels()
+    anchor = (
+        legend_tail.get_position().x1 - 0.004,
+        legend_axis.get_position().y0 + 0.008,
+    )
+    fig.legend(
+        handles,
+        labels,
+        loc="lower right",
+        bbox_to_anchor=anchor,
+        fontsize=7,
+        edgecolor=BORDER,
+        facecolor="white",
+        framealpha=1.0,
+        fancybox=False,
+    )
     fig.savefig(f"{output_stem}.png", dpi=300)
     fig.savefig(f"{output_stem}.pdf")
     plt.close(fig)
