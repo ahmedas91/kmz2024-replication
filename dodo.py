@@ -25,6 +25,7 @@ from doit.tools import config_changed
 # coexist (see src/sample_period.py).
 from run_bonds_study import BONDS_AVERAGED_PATH, BONDS_N_SEEDS, BONDS_PER_SEED_PATH
 from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH
+from run_intl_study import INTL_AVERAGED_PATH, INTL_N_SEEDS, INTL_PER_SEED_PATH
 from run_variable_importance import FIG11_N_SEEDS, VI_PATH
 from sample_period import SAMPLE_SUFFIX
 from settings import config
@@ -122,6 +123,17 @@ def task_pull():
         ],
         "targets": [DATA_DIR / "goyal_welch.parquet"],
         "file_dep": ["./src/settings.py", "./src/pull_goyal_welch.py"],
+        "clean": [],
+    }
+    yield {
+        "name": "intl_equity",
+        "doc": "Pull the developed-ex-US factors from the Ken French library",
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/pull_intl_equity.py",
+        ],
+        "targets": [DATA_DIR / "intl_equity.parquet"],
+        "file_dep": ["./src/settings.py", "./src/pull_intl_equity.py"],
         "clean": [],
     }
 
@@ -377,6 +389,7 @@ def task_figure_bonds():
             "./src/settings.py",
             "./src/sample_period.py",
             "./src/figure_bonds.py",
+            "./src/figure_voc_study.py",
             "./src/figure_style.py",
             "./src/run_bonds_study.py",
             BONDS_AVERAGED_PATH,
@@ -385,6 +398,60 @@ def task_figure_bonds():
             OUTPUT_DIR / f"figure_bonds{SAMPLE_SUFFIX}.png",
             OUTPUT_DIR / f"figure_bonds{SAMPLE_SUFFIX}.pdf",
             OUTPUT_DIR / f"figure_bonds_data{SAMPLE_SUFFIX}.parquet",
+        ],
+        "clean": True,
+    }
+
+
+def task_intl_study():
+    """Run the international equities VoC study through the API"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/run_intl_study.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/run_intl_study.py",
+            "./src/pull_intl_equity.py",
+            "./voc/__init__.py",
+            "./voc/oos_engine.py",
+            "./voc/performance_metrics.py",
+            "./voc/preprocessing.py",
+            "./voc/rff.py",
+            "./voc/kernel_ridge.py",
+            DATA_DIR / "intl_equity.parquet",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+        ],
+        "targets": [INTL_AVERAGED_PATH, INTL_PER_SEED_PATH],
+        # TRAIN_WINDOW and SAMPLE_END are visible through the target
+        # filenames; INTL_N_SEEDS is not, so track it explicitly.
+        "uptodate": [config_changed({"INTL_N_SEEDS": str(INTL_N_SEEDS)})],
+        "clean": [],
+    }
+
+
+def task_figure_intl():
+    """Plot the international VoC panels from the cached intl grid"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure_intl.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/figure_intl.py",
+            "./src/figure_voc_study.py",
+            "./src/figure_style.py",
+            "./src/run_intl_study.py",
+            INTL_AVERAGED_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / f"figure_intl{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure_intl{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure_intl_data{SAMPLE_SUFFIX}.parquet",
         ],
         "clean": True,
     }
