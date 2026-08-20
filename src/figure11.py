@@ -27,7 +27,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.ticker import MultipleLocator, PercentFormatter
 
-from figure_style import BORDER, INK_SECONDARY, PAPER_LINE_COLORS, style_axis
+from figure_style import (
+    BORDER,
+    INK_SECONDARY,
+    PAPER_LINE_COLORS,
+    save_png_pdf,
+    style_axis,
+)
 from sample_period import SAMPLE_SUFFIX
 from settings import config
 
@@ -123,12 +129,11 @@ def plot_figure11(vi, output_stem):
     ax_sharpe.tick_params(axis="y", colors=LINE_COLOR, labelsize=8)
     ax_r2.tick_params(axis="x", colors=INK_SECONDARY)
 
-    fig.savefig(f"{output_stem}.png", dpi=300)
-    fig.savefig(f"{output_stem}.pdf")
-    plt.close(fig)
+    save_png_pdf(fig, output_stem)
 
 
 def main():
+    """Build the VI table, render the figure, and write the data parquet."""
     vi = load_vi_data()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     vi.to_parquet(OUTPUT_DIR / f"figure11_data{SAMPLE_SUFFIX}.parquet")

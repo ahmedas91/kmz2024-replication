@@ -21,25 +21,34 @@ reuses it; ``figure_bonds.py`` and ``figure_intl.py`` are thin wrappers.
 import matplotlib.pyplot as plt
 
 from figure_style import (
-    BORDER,
     INK_MUTED,
     PAPER_LINE_COLORS,
+    RIDGELESS_STYLE,
+    add_lower_right_legend,
     broken_axis_pair,
     finish_broken_pair,
+    save_png_pdf,
     z_line_label,
 )
 
-RIDGELESS_STYLE = {
-    "color": "#262523",
-    "linewidth": 1.5,
-    "linestyle": (0, (5, 2)),
-    "zorder": 4,
-}
 # (ylim, tick step, decimals) for the R^2 panels; the Sharpe panels share
 # one data-stretched frame across targets.
 R2_FRAME = ((-3.0, 0.1), 0.5, 1)
 SHARPE_STEP, SHARPE_DECIMALS = 0.05, 2
 SHARPE_FLOOR = 0.30
+
+
+def load_panel_data(grid_path):
+    """All cached study rows (ridgeless included), sorted within target.
+
+    The shared loader for the study caches (bonds, intl): reads the averaged
+    grid parquet and returns the columns :func:`plot_voc_panels` consumes.
+    """
+    import pandas as pd
+
+    grid = pd.read_parquet(grid_path)
+    grid = grid.sort_values(["target", "z", "c"]).reset_index(drop=True)
+    return grid[["target", "P", "z", "c", "r2", "sharpe"]]
 
 
 def plot_voc_panels(panel_data, target_labels, output_stem):
@@ -53,6 +62,8 @@ def plot_voc_panels(panel_data, target_labels, output_stem):
     targets += sorted(set(panel_data["target"]) - set(targets))  # unknown last
     ridge_z = sorted(panel_data.loc[panel_data["z"] > 0.0, "z"].unique())
     sharpe_top = max(SHARPE_FLOOR, 1.1 * panel_data["sharpe"].max())
+    # Stretch the bottom too when data go negative, so nothing clips silently.
+    sharpe_bottom = min(0.0, 1.1 * panel_data["sharpe"].min())
     fig = plt.figure(figsize=(10.0, 3.9 * len(targets)), facecolor="white")
     outer = fig.add_gridspec(
         len(targets),
@@ -105,7 +116,7 @@ def plot_voc_panels(panel_data, target_labels, output_stem):
                 (bottom, top), step, decimals = R2_FRAME
             else:
                 (bottom, top), step, decimals = (
-                    (0.0, sharpe_top),
+                    (sharpe_bottom, sharpe_top),
                     SHARPE_STEP,
                     SHARPE_DECIMALS,
                 )
@@ -117,22 +128,5 @@ def plot_voc_panels(panel_data, target_labels, output_stem):
                 step,
                 decimals,
             )
-    handles, labels = legend_axis.get_legend_handles_labels()
-    anchor = (
-        legend_tail.get_position().x1 - 0.004,
-        legend_axis.get_position().y0 + 0.008,
-    )
-    fig.legend(
-        handles,
-        labels,
-        loc="lower right",
-        bbox_to_anchor=anchor,
-        fontsize=7,
-        edgecolor=BORDER,
-        facecolor="white",
-        framealpha=1.0,
-        fancybox=False,
-    )
-    fig.savefig(f"{output_stem}.png", dpi=300)
-    fig.savefig(f"{output_stem}.pdf")
-    plt.close(fig)
+    add_lower_right_legend(fig, legend_axis, legend_tail)
+    save_png_pdf(fig, output_stem)

@@ -61,6 +61,7 @@ FULL_MODEL_LABEL = "none"
 
 
 def main():
+    """Run the 16 leave-one-out estimations and cache the per-seed results."""
     # Heavy imports live here so dodo.py can import the constants above without
     # paying for pandas and the engine at every doit parse.
     import pandas as pd

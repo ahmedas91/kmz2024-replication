@@ -40,7 +40,7 @@ from pathlib import Path
 # (which puts src/, not the repo root, on sys.path).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sample_period import SAMPLE_END, SAMPLE_SUFFIX
+from sample_period import SAMPLE_SUFFIX, trim_to_sample
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
@@ -74,9 +74,9 @@ def build_intl_study_inputs(data_dir=DATA_DIR, sample_end=None):
     )
     intl = load_intl_equity(data_dir=data_dir)
     raw_target = intl[TARGET_COL].to_numpy()
-    standardized_target = raw_target / trailing_uncentered_vol(
-        raw_target, window=TRAIN_WINDOW
-    )
+    # The 12-month volatility window is the KMZ RETURN-standardization
+    # convention (footnote 34), fixed at 12 regardless of TRAIN_WINDOW.
+    standardized_target = raw_target / trailing_uncentered_vol(raw_target, window=12)
     target = pd.DataFrame(
         {
             "date": intl["date"],
@@ -86,14 +86,14 @@ def build_intl_study_inputs(data_dir=DATA_DIR, sample_end=None):
     )
     frame = target.merge(predictors, on="date", how="inner")
     frame = frame.dropna().reset_index(drop=True)
-    cutoff = pd.Timestamp(sample_end or SAMPLE_END) + pd.offsets.MonthEnd(0)
-    frame = frame.loc[frame["date"] <= cutoff].reset_index(drop=True)
+    frame = trim_to_sample(frame, sample_end)
     if frame.empty:
-        raise ValueError(f"no rows left for {TARGET_COL} through {cutoff:%Y-%m}")
+        raise ValueError(f"no rows left for {TARGET_COL} through {sample_end}")
     return frame
 
 
 def main():
+    """Run the international study and cache the per-seed and averaged grids."""
 
     from voc.oos_engine import run_voc_study
 

@@ -75,7 +75,9 @@ def ridge_dual(S_train, R_train, z) -> np.ndarray:
     if z_values.ndim != 1:
         raise ValueError("z must be a scalar or a 1-D sequence")
     if np.any(z_values <= 0.0):
-        raise ValueError("z must be > 0; use ridgeless() for the z=0 minimum-norm limit")
+        raise ValueError(
+            "z must be > 0; use ridgeless() for the z=0 minimum-norm limit"
+        )
     n_obs = S.shape[0]
 
     gram = S @ S.T  # (T, T), symmetric positive semidefinite

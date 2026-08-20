@@ -25,11 +25,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from figure_style import (
-    BORDER,
     INK_MUTED,
     PAPER_LINE_COLORS,
+    add_lower_right_legend,
     broken_axis_pair,
     finish_broken_pair,
+    save_png_pdf,
     z_line_label,
 )
 from sample_period import SAMPLE_SUFFIX
@@ -105,28 +106,12 @@ def plot_figure7(panel_data, output_stem):
         finish_broken_pair(ax_main, ax_tail, title, (bottom, top), ytick_step, decimals)
     # One boxed legend in Panel A's lower-right corner, drawn at figure level
     # so it may sit on top of the axis break and sliver, as in the paper.
-    handles, labels = legend_axis.get_legend_handles_labels()
-    anchor = (
-        legend_tail.get_position().x1 - 0.004,
-        legend_axis.get_position().y0 + 0.008,
-    )
-    fig.legend(
-        handles,
-        labels,
-        loc="lower right",
-        bbox_to_anchor=anchor,
-        fontsize=7,
-        edgecolor=BORDER,
-        facecolor="white",
-        framealpha=1.0,
-        fancybox=False,
-    )
-    fig.savefig(f"{output_stem}.png", dpi=300)
-    fig.savefig(f"{output_stem}.pdf")
-    plt.close(fig)
+    add_lower_right_legend(fig, legend_axis, legend_tail)
+    save_png_pdf(fig, output_stem)
 
 
 def main():
+    """Load the grid, render Figure 7, and write the plotted data parquet."""
     panel_data = load_panel_data()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     panel_data.to_parquet(OUTPUT_DIR / f"figure7_data{SAMPLE_SUFFIX}.parquet")

@@ -56,7 +56,11 @@ def momentum_benchmark(returns, T=12, weights=None):
     n = R.shape[0]
     if n < T + 2:
         raise ValueError("need at least T + 2 observations")
-    w = declining_weights(T) if weights is None else np.asarray(weights, dtype=np.float64)
+    w = (
+        declining_weights(T)
+        if weights is None
+        else np.asarray(weights, dtype=np.float64)
+    )
     if w.shape != (T,):
         raise ValueError(f"weights must have shape ({T},)")
     ts = np.arange(T, n - 1)

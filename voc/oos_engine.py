@@ -301,6 +301,11 @@ def run_voc_study(
         )
     if save_forecasts and data_dir is None:
         raise ValueError("save_forecasts=True requires data_dir")
+    if dates is not None and len(np.asarray(dates)) != R.shape[0]:
+        raise ValueError(
+            f"dates must have one label per data row; got "
+            f"{len(np.asarray(dates))} labels for {R.shape[0]} rows"
+        )
     seeds = list(dict.fromkeys(int(s) for s in seeds))  # dedupe, keep order
     if not seeds:
         raise ValueError("seeds must be a non-empty iterable of ints")

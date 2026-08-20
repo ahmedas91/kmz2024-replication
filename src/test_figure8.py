@@ -40,7 +40,7 @@ from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
-GRID_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}.parquet"
+GRID_PATH = DATA_DIR / "oos_grid_T12.parquet"  # anchors are T=12-specific
 
 requires_data = pytest.mark.skipif(
     not GRID_PATH.exists(),

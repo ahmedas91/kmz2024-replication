@@ -23,6 +23,7 @@ from doit.tools import config_changed
 # SAMPLE_SUFFIX names the period-dependent artifacts: empty for the paper
 # period, "_{SAMPLE_END}" otherwise, so a paper run and an updated-sample run
 # coexist (see src/sample_period.py).
+from export_forecasts import FORECASTS_PATH
 from run_bonds_study import BONDS_AVERAGED_PATH, BONDS_N_SEEDS, BONDS_PER_SEED_PATH
 from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH
 from run_intl_study import INTL_AVERAGED_PATH, INTL_N_SEEDS, INTL_PER_SEED_PATH
@@ -102,16 +103,23 @@ def task_pull():
     """Pull data from external sources"""
     yield {
         "name": "crsp_stock",
-        "doc": "Pull CRSP stock data from WRDS",
+        "doc": "Pull the CRSP value-weighted index from WRDS",
         "actions": [
             "python ./src/settings.py",
             "python ./src/pull_CRSP_stock.py",
         ],
-        "targets": [
-            DATA_DIR / "CRSP_monthly_stock.parquet",
-            DATA_DIR / "CRSP_MSIX.parquet",
-        ],
+        "targets": [DATA_DIR / "CRSP_MSIX.parquet"],
         "file_dep": ["./src/settings.py", "./src/pull_CRSP_stock.py"],
+        # The pull is bounded by the date window; track it like the seed
+        # counts or a widened END_DATE would silently reuse a stale parquet.
+        "uptodate": [
+            config_changed(
+                {
+                    "START_DATE": str(config("START_DATE")),
+                    "END_DATE": str(config("END_DATE")),
+                }
+            )
+        ],
         "clean": [],
     }
     yield {
@@ -148,6 +156,8 @@ def task_tidy():
         "file_dep": [
             "./src/settings.py",
             "./src/clean_goyal_welch.py",
+            "./src/pull_goyal_welch.py",
+            "./src/pull_CRSP_stock.py",
             DATA_DIR / "goyal_welch.parquet",
             DATA_DIR / "CRSP_MSIX.parquet",
         ],
@@ -265,12 +275,34 @@ def task_figure8():
     }
 
 
-def task_nagel():
-    """Run Nagel's critique tests, then build the comparison table and figure.
+def task_export_forecasts():
+    """Export the per-seed anchor forecast series (the Nagel study's input)"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/export_forecasts.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/export_forecasts.py",
+            "./voc/__init__.py",
+            "./voc/oos_engine.py",
+            "./voc/performance_metrics.py",
+            "./voc/rff.py",
+            "./voc/kernel_ridge.py",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+        ],
+        "targets": [FORECASTS_PATH],
+        # TRAIN_WINDOW and SAMPLE_END are visible through the target
+        # filename; N_SEEDS is not, so track it explicitly.
+        "uptodate": [config_changed({"N_SEEDS": str(N_SEEDS)})],
+        "clean": [],
+    }
 
-    Consumes the anchor forecast export written by `SAVE_FORECASTS=1 doit estimate`,
-    so run that first to create `_data/forecasts_market{suffix}.parquet`.
-    """
+
+def task_nagel():
+    """Run Nagel's critique tests, then build the comparison table and figure"""
     return {
         "actions": [
             "python ./src/settings.py",
@@ -285,7 +317,7 @@ def task_nagel():
             "./voc/nagel.py",
             "./voc/performance_metrics.py",
             DATA_DIR / "kmz_dataset_standardized.parquet",
-            DATA_DIR / f"forecasts_market{SAMPLE_SUFFIX}.parquet",
+            FORECASTS_PATH,
         ],
         "targets": [
             DATA_DIR / f"nagel_metrics{SAMPLE_SUFFIX}.parquet",
@@ -457,33 +489,6 @@ def task_figure_intl():
     }
 
 
-def task_template_examples():
-    """Run the project template's demo scripts (example LaTeX docs need them)"""
-    file_dep = [
-        "./src/settings.py",
-        "./src/example_table.py",
-        "./src/pandas_to_latex_demo.py",
-        "./src/example_plot.py",
-    ]
-    file_output = [
-        "example_table.tex",
-        "pandas_to_latex_simple_table1.tex",
-        "example_plot.png",
-    ]
-    targets = [OUTPUT_DIR / file for file in file_output]
-
-    return {
-        "actions": [
-            "python ./src/example_table.py",
-            "python ./src/pandas_to_latex_demo.py",
-            "python ./src/example_plot.py",
-        ],
-        "targets": targets,
-        "file_dep": file_dep,
-        "clean": True,
-    }
-
-
 def task_summary_stats():
     """Generate summary statistics tables and plots"""
     file_dep = [
@@ -505,6 +510,7 @@ def task_summary_stats():
 
     return {
         "actions": [
+            "python ./src/settings.py",
             "python ./src/table_predictor_summary.py",
             "python ./src/plot_predictor_timeseries.py",
         ],
@@ -560,41 +566,29 @@ def task_run_notebooks():
 
 
 def task_compile_latex_docs():
-    """Compile the LaTeX documents to PDFs"""
+    """Compile the LaTeX documents to PDFs
+
+    Currently just the presentation deck seed (the project report is issue
+    #12). The deck includes the Figure 8 replication, so depending on that
+    OUTPUT (not the script) makes doit order the tasks correctly. The deck
+    shows the PAPER-period figure by design, so the bare figure8.png must
+    exist; a clone configured only with a non-paper SAMPLE_END should run
+    the default paper period once first.
+    """
     file_dep = [
-        "./reports/report_example.tex",
-        "./reports/my_article_header.sty",
         "./reports/slides_example.tex",
         "./reports/my_beamer_header.sty",
         "./reports/my_common_header.sty",
-        "./reports/report_simple_example.tex",
-        "./reports/slides_simple_example.tex",
-        # Outputs of task_template_examples that the example docs \input or
-        # \includegraphics; depending on the outputs (not the scripts) makes
-        # doit order the tasks correctly.
-        OUTPUT_DIR / "example_table.tex",
-        OUTPUT_DIR / "pandas_to_latex_simple_table1.tex",
-        OUTPUT_DIR / "example_plot.png",
+        OUTPUT_DIR / "figure8.png",
     ]
     targets = [
-        "./reports/report_example.pdf",
         "./reports/slides_example.pdf",
-        "./reports/report_simple_example.pdf",
-        "./reports/slides_simple_example.pdf",
     ]
 
     return {
         "actions": [
-            # My custom LaTeX templates
-            "latexmk -xelatex -halt-on-error -cd ./reports/report_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/report_example.tex",  # Clean
             "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",  # Compile
             "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_example.tex",  # Clean
-            # Simple templates based on small adjustments to Overleaf templates
-            "latexmk -xelatex -halt-on-error -cd ./reports/report_simple_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/report_simple_example.tex",  # Clean
-            "latexmk -xelatex -halt-on-error -cd ./reports/slides_simple_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_simple_example.tex",  # Clean
         ],
         "targets": targets,
         "file_dep": file_dep,
@@ -616,6 +610,14 @@ def task_build_chartbook_site():
         "./README.md",
         "./chartbook.toml",
         *notebook_scripts,
+        # The site embeds the docs pages and the registered artifacts, so
+        # regenerating a figure or editing a page retriggers the build.
+        *sorted(Path("./docs_src").rglob("*.md")),
+        *sorted(
+            path
+            for pattern in ("figure*.png", "predictor_*.png")
+            for path in Path(OUTPUT_DIR).glob(pattern)
+        ),
     ]
 
     return {

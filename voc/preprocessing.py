@@ -50,4 +50,17 @@ def standardize_inputs(target, predictors, window=12, min_periods=36):
     )
     predictors_std = G / scales
     valid = np.isfinite(target_std) & np.isfinite(predictors_std).all(axis=1)
+    # The documented caller pattern is target_std[valid]; the engine's t -> t+1
+    # recursion assumes CONSECUTIVE months, so a mask that goes False
+    # mid-sample (a NaN month, or a zero-volatility stretch) would silently
+    # splice non-adjacent months together. Refuse rather than mislead.
+    if valid.any():
+        first = int(np.argmax(valid))
+        if not valid[first:].all():
+            raise ValueError(
+                "standardized values are non-finite mid-sample (a NaN or "
+                "zero-volatility stretch after the burn-in); masking with "
+                "`valid` would splice non-adjacent months into the engine's "
+                "consecutive-month recursion. Clean or truncate the inputs."
+            )
     return target_std, predictors_std, valid

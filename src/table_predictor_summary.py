@@ -1,7 +1,7 @@
 """Generate the predictor summary-statistics LaTeX table.
 
-Builds a two-panel table following the stitched-``\\midrule`` pattern of
-``example_table.py``: Panel A summarizes the raw tidy dataset
+Builds a two-panel table with a stitched ``\\midrule`` between the panels:
+Panel A summarizes the raw tidy dataset
 (clean_goyal_welch, 1926 onward) and Panel B the volatility-standardized
 analysis dataset (standardize_kmz, 1930 onward). Rows are the market excess
 return plus the 15 predictors in the paper's footnote-33 order, labeled with
@@ -20,18 +20,12 @@ from pathlib import Path
 import pandas as pd
 
 from clean_goyal_welch import PREDICTOR_COLUMNS, load_kmz_dataset
-from sample_period import SAMPLE_END, SAMPLE_SUFFIX
+from sample_period import SAMPLE_SUFFIX, trim_to_sample
 from settings import config
 from standardize_kmz import load_standardized_dataset
 
 DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
-
-
-def trim_to_sample(df, sample_end=SAMPLE_END):
-    """Rows of ``df`` up to and including the configured last sample month."""
-    cutoff = pd.Timestamp(sample_end) + pd.offsets.MonthEnd(0)
-    return df.loc[df["date"] <= cutoff].reset_index(drop=True)
 
 
 # Paper display names (Figure 11 labels), keyed by our column names.

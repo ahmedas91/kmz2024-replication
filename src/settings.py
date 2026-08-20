@@ -114,12 +114,11 @@ else:
 
 # OS type
 def get_os():
+    """Classify the platform as ``windows``, ``nix``, or ``unknown``."""
     os_name = system()
     if os_name == "Windows":
         return "windows"
-    elif os_name == "Darwin":
-        return "nix"
-    elif os_name == "Linux":
+    elif os_name == "Darwin" or os_name == "Linux":
         return "nix"
     else:
         return "unknown"
@@ -130,22 +129,6 @@ if "OS_TYPE" in cli_vars:
 else:
     defaults["OS_TYPE"] = get_os()
 
-
-## Stata executable
-def get_stata_exe():
-    """Get the name of the Stata executable based on the OS type."""
-    if defaults["OS_TYPE"] == "windows":
-        return "StataMP-64.exe"
-    elif defaults["OS_TYPE"] == "nix":
-        return "stata-mp"
-    else:
-        raise ValueError("Unknown OS type")
-
-
-if "STATA_EXE" in cli_vars:
-    defaults["STATA_EXE"] = cli_vars["STATA_EXE"]
-else:
-    defaults["STATA_EXE"] = get_stata_exe()
 
 ## Dates
 defaults["START_DATE"] = datetime.strptime("1913-01-01", "%Y-%m-%d")
@@ -245,6 +228,7 @@ def config(
 
 
 def create_directories():
+    """Create the configured data and output directories if absent."""
     config("DATA_DIR").mkdir(parents=True, exist_ok=True)
     config("OUTPUT_DIR").mkdir(parents=True, exist_ok=True)
 

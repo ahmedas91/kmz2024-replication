@@ -112,3 +112,41 @@ def test_standardize_inputs_is_backward_looking():
     assert valid[36:].all()
     assert np.isfinite(target_std[valid]).all()
     assert np.isfinite(predictors_std[valid]).all()
+
+
+def test_dates_length_mismatch_rejected():
+    """A dates array not matching the sample length must fail loudly, not
+    silently mislabel the forecast export (checkup finding)."""
+    target, predictors = _synthetic()
+    with pytest.raises(ValueError, match="one label per data row"):
+        run_voc_study(
+            target,
+            predictors,
+            dates=np.arange(len(target) + 24),
+            seeds=range(1),
+            p_grid=(2,),
+            z_grid=(1.0,),
+        )
+
+
+def test_standardize_inputs_rejects_mid_sample_gaps():
+    """A NaN month after the burn-in would make the valid mask non-contiguous
+    and splice non-adjacent months into the engine's recursion; refuse."""
+    rng = np.random.default_rng(3)
+    target = rng.standard_normal(120)
+    target[60] = np.nan
+    predictors = rng.standard_normal((120, 3))
+    with pytest.raises(ValueError, match="non-finite mid-sample"):
+        standardize_inputs(target, predictors)
+
+
+def test_centered_standardization_requires_two_rows():
+    """T=1 centered-mode scales are undefined (ddof=1); the engine must error
+    rather than silently disable the pinned standardization."""
+    from voc.rff import standardize_by_training_window
+
+    rng = np.random.default_rng(4)
+    with pytest.raises(ValueError, match="at least 2 training rows"):
+        standardize_by_training_window(
+            rng.standard_normal((1, 4)), rng.standard_normal(4), uncentered=False
+        )
