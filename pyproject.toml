@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voc"
+version = "0.1.0"
+description = "Virtue-of-Complexity return-prediction engine (Kelly, Malamud & Zhou 2024)"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "joblib",
+    "pyarrow",
+]
+
+[tool.setuptools]
+packages = ["voc"]

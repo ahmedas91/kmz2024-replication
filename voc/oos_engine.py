@@ -7,12 +7,15 @@ strategy return. The nested complexity grid reuses the single RFF draw (slice th
 first ``P`` columns) and one Gram eigendecomposition per ``(window, P)`` across all
 shrinkage levels ``z`` (see :mod:`voc.rff` and :mod:`voc.kernel_ridge`).
 
-:func:`run_grid` runs many seeds — independent and parallelizable — and returns a
-long-format table of per-``(seed, P, z)`` statistics plus the across-seed means:
-the paper's aggregate-the-statistics-not-the-forecasts convention (2025 reply,
-Section 4.2.1). The engine is pure (no file IO, no data-pipeline imports); a
-driver loads the standardized dataset, calls :func:`run_grid`, and caches the
-result.
+:func:`run_voc_study` is the generic entry point (issue #14): it runs many
+seeds — independent and parallelizable — on ANY already-standardized
+``(target, predictors)`` pair and returns a long-format table of
+per-``(seed, P, z)`` statistics plus the across-seed means: the paper's
+aggregate-the-statistics-not-the-forecasts convention (2025 reply, Section
+4.2.1). :func:`run_grid` is its DataFrame convenience wrapper in the market
+schema. The engine is pure (no data-pipeline imports; the only file IO is the
+optional ``save_forecasts`` export); a driver loads standardized data, calls
+the entry point, and caches the result.
 
 Timing (get this exactly right)
 -------------------------------
@@ -43,6 +46,8 @@ checks against the uncentered variant.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -184,10 +189,46 @@ def run_recursive_oos(
     return results
 
 
-def run_grid(
-    dataset,
-    target_col="mkt_excess",
-    predictor_cols=None,
+def _write_forecast_series(seed_bundles, dates, T, study_name, data_dir):
+    """Persist per-seed forecast / realized / strategy series for each (P, z).
+
+    ``seed_bundles`` iterates ``(seed, bundle)`` pairs from
+    :func:`run_recursive_oos` with ``return_forecasts=True``. The realized
+    return at OOS step i is ``R[T + 1 + i]``, so its label is
+    ``dates[T + 1 + i]`` when ``dates`` is given, else the integer position.
+    """
+    frames = []
+    for seed, bundle in seed_bundles:
+        realized = bundle["realized"]
+        n_oos = realized.shape[0]
+        if dates is not None:
+            obs = np.asarray(dates)[T + 1 : T + 1 + n_oos]
+        else:
+            obs = np.arange(n_oos)
+        for (P, z), forecast in bundle["forecasts"].items():
+            frames.append(
+                pd.DataFrame(
+                    {
+                        "seed": int(seed),
+                        "P": int(P),
+                        "z": float(z),
+                        "obs": obs,
+                        "forecast": forecast,
+                        "realized": realized,
+                        "strategy": forecast * realized,
+                    }
+                )
+            )
+    path = Path(data_dir) / f"forecasts_{study_name}.parquet"
+    pd.concat(frames, ignore_index=True).to_parquet(path)
+    return path
+
+
+def run_voc_study(
+    target,
+    predictors,
+    *,
+    dates=None,
     T=12,
     p_grid=P_GRID_DEFAULT,
     z_grid=Z_GRID_DEFAULT,
@@ -196,21 +237,48 @@ def run_grid(
     include_ridgeless=True,
     uncentered=False,
     n_jobs=1,
+    save_forecasts=False,
+    study_name="market",
+    data_dir=None,
 ):
-    """Run the recursive OOS grid across seeds; return long-format statistics.
+    """Run a virtue-of-complexity study on any (target, predictors) pair.
+
+    The reusable entry point (issue #14): the KMZ market replication is one
+    call, and asset-class studies (bonds, international) or experiments (the
+    Nagel counterfactual) are other calls with different inputs. Inputs are
+    assumed ALREADY volatility-standardized, which is the caller's job (see
+    :mod:`voc.preprocessing`) — the engine never standardizes your data for
+    you, so no lookahead can be smuggled in on your behalf. (The RFF
+    training-window standardization is a separate, internal step; see
+    ``uncentered``.)
 
     Parameters
     ----------
-    dataset : pandas.DataFrame
-        Volatility-standardized data with ``target_col`` and ``predictor_cols``.
-        If ``predictor_cols`` is None, uses every column except ``"date"`` and the
-        target (the RFF dimension follows the predictor frame's width). Must be
-        free of NaN/inf.
+    target : array-like, shape (n,)
+        Standardized target returns; row t is month t. Must be finite.
+    predictors : array-like or DataFrame, shape (n, d)
+        Standardized predictors; the RFF dimension follows the width d.
+        Must be finite — drop the standardization burn-in rows first.
+    dates : array-like, shape (n,), optional
+        Row labels, used only for the forecast export's ``obs`` column.
     seeds : iterable of int
         RFF repetition seeds; must be non-empty. Duplicates are dropped.
+    uncentered : bool
+        RFF training-window standardization convention. The pipeline pins the
+        CENTERED default (False), validated against the paper's Figure 8
+        anchors in issue #9 (see :func:`run_recursive_oos`); the kwarg is
+        retained for A/B checks.
     n_jobs : int
         joblib parallelism across seeds (``-1`` = all cores). Seeds are
         independent, so results are identical for any ``n_jobs``.
+    save_forecasts : bool
+        If True, also write the per-seed forecast / realized / strategy
+        series of every ``(P, z)`` cell to
+        ``<data_dir>/forecasts_<study_name>.parquet`` (requires ``data_dir``).
+        The file grows as seeds x cells x months, so keep the grid small when
+        enabling this — e.g. just the anchor configuration.
+    T, p_grid, z_grid, gamma, include_ridgeless :
+        As in :func:`run_recursive_oos`.
 
     Returns
     -------
@@ -219,14 +287,20 @@ def run_grid(
         across-seed mean per ``(P, z)`` of every statistic column in
         ``per_seed``, so statistics added to ``compute_metrics`` flow through.
     """
-    if predictor_cols is None:
-        predictor_cols = [c for c in dataset.columns if c not in ("date", target_col)]
-    G = dataset[predictor_cols].to_numpy(dtype=np.float64)
-    R = dataset[target_col].to_numpy(dtype=np.float64)
+    R = np.asarray(target, dtype=np.float64).ravel()
+    G = np.asarray(predictors, dtype=np.float64)
+    if G.ndim != 2 or G.shape[0] != R.shape[0]:
+        raise ValueError(
+            "predictors must be (n, d) with one row per target row; got "
+            f"predictors {G.shape}, target {R.shape}"
+        )
     if not (np.isfinite(G).all() and np.isfinite(R).all()):
         raise ValueError(
-            "dataset has NaN/inf in the predictors or target; clean it upstream"
+            "target or predictors have NaN/inf; standardize and drop the "
+            "burn-in rows upstream (see voc.preprocessing.standardize_inputs)"
         )
+    if save_forecasts and data_dir is None:
+        raise ValueError("save_forecasts=True requires data_dir")
     seeds = list(dict.fromkeys(int(s) for s in seeds))  # dedupe, keep order
     if not seeds:
         raise ValueError("seeds must be a non-empty iterable of ints")
@@ -242,13 +316,26 @@ def run_grid(
             gamma=gamma,
             include_ridgeless=include_ridgeless,
             uncentered=uncentered,
+            return_forecasts=save_forecasts,
         )
 
     # joblib runs n_jobs=1 sequentially in-process, so one dispatch path serves
     # every setting (and the tested path IS the production path).
-    seed_results = Parallel(n_jobs=n_jobs)(delayed(_one_seed)(s) for s in seeds)
+    seed_out = Parallel(n_jobs=n_jobs)(delayed(_one_seed)(s) for s in seeds)
 
-    per_seed = pd.DataFrame([row for rows in seed_results for row in rows])
+    if save_forecasts:
+        seed_stats = [stats for stats, _ in seed_out]
+        _write_forecast_series(
+            zip(seeds, (bundle for _, bundle in seed_out)),
+            dates,
+            T,
+            study_name,
+            data_dir,
+        )
+    else:
+        seed_stats = seed_out
+
+    per_seed = pd.DataFrame([row for rows in seed_stats for row in rows])
     # c is constant within each (P, z) group, so it averages through unchanged;
     # no separate statistic-column list to keep in sync with compute_metrics.
     averaged = (
@@ -258,3 +345,42 @@ def run_grid(
         .reset_index()
     )
     return per_seed, averaged
+
+
+def run_grid(
+    dataset,
+    target_col="mkt_excess",
+    predictor_cols=None,
+    T=12,
+    p_grid=P_GRID_DEFAULT,
+    z_grid=Z_GRID_DEFAULT,
+    seeds=range(50),
+    gamma=GAMMA_DEFAULT,
+    include_ridgeless=True,
+    uncentered=False,
+    n_jobs=1,
+):
+    """DataFrame convenience wrapper over :func:`run_voc_study` (market schema).
+
+    Splits a standardized dataset into ``target_col`` and predictor columns
+    (default: every column except ``"date"`` and the target, so the RFF
+    dimension follows the frame's width) and runs the study. Kept with this
+    exact signature so the market and variable-importance drivers and the
+    engine tests are wrapper-agnostic.
+    """
+    if predictor_cols is None:
+        predictor_cols = [c for c in dataset.columns if c not in ("date", target_col)]
+    dates = dataset["date"].to_numpy() if "date" in dataset.columns else None
+    return run_voc_study(
+        dataset[target_col],
+        dataset[predictor_cols],
+        dates=dates,
+        T=T,
+        p_grid=p_grid,
+        z_grid=z_grid,
+        seeds=seeds,
+        gamma=gamma,
+        include_ridgeless=include_ridgeless,
+        uncentered=uncentered,
+        n_jobs=n_jobs,
+    )
