@@ -632,11 +632,13 @@ def task_compile_latex_docs():
     ]
 
     return {
+        # No latexmk -c clean step: the aux files (especially the .bbl) stay
+        # next to the sources, all gitignored, so a single-pass IDE rebuild
+        # (LaTeX Workshop honoring the xelatex magic comment) still resolves
+        # every citation instead of printing "?".
         "actions": [
-            "latexmk -xelatex -halt-on-error -cd ./reports/report_kmz.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/report_kmz.tex",  # Clean
-            "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_example.tex",  # Clean
+            "latexmk -xelatex -halt-on-error -cd ./reports/report_kmz.tex",
+            "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",
         ],
         "targets": targets,
         "file_dep": file_dep,
