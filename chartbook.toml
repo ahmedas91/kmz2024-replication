@@ -71,6 +71,30 @@ path = "_data/oos_grid_T12_per_seed.parquet"
 docs_path = "docs_src/dataframes/oos_grid_T12_per_seed.md"
 
 
+[dataframes.bond_returns]
+name = "Bond excess returns"
+description = "Monthly long-term government (ltr - Rfree) and corporate (corpr - Rfree) bond excess returns, 1926 onward, built from columns already in the Goyal-Welch pull. The targets of the bonds VoC study."
+sources = ["Goyal-Welch predictor workbook"]
+providers = ["Amit Goyal"]
+provider_links = ["https://sites.google.com/view/agoyal145"]
+tags = ["monthly", "bonds", "returns"]
+pull_method = "doit tidy_bonds (src/clean_bond_returns.py)"
+path = "_data/bond_returns.parquet"
+docs_path = "docs_src/dataframes/bond_returns.md"
+
+
+[dataframes.oos_grid_bonds_T12]
+name = "Bonds OOS grid statistics (T = 12)"
+description = "Across-seed mean OOS statistics of the VoC grid run on the two bond excess-return targets (government and corporate), one row per (target, P, z). The results dataframe behind the bonds figure."
+sources = ["bond_returns (this project)", "kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["oos", "grid", "statistics", "bonds"]
+pull_method = "doit bonds_study (src/run_bonds_study.py driving voc.run_voc_study)"
+path = "_data/oos_grid_bonds_T12.parquet"
+docs_path = "docs_src/dataframes/oos_grid_bonds_T12.md"
+
+
 [dataframes.variable_importance_T12]
 name = "Variable-importance runs (T = 12)"
 description = "Per-seed OOS statistics of the 16 Figure 11 estimations at P = 12,000, z = 1000: the full 15-predictor model plus one leave-one-out model per predictor, tagged by the excluded column. The cache behind the Figure 11 replication."
@@ -114,6 +138,16 @@ tags = ["figure", "replication", "variable-importance"]
 frequency = "monthly"
 path = "_output/figure11.png"
 docs_path = "docs_src/charts/figure11.md"
+
+
+[charts.figure_bonds]
+name = "Bonds VoC study (T = 12)"
+description = "Virtue-of-complexity panels for long-term government and corporate bond excess returns: OOS R2 and Sharpe ratio against model complexity, one row per bond series, same style and grids as the market figures."
+dataframe = "oos_grid_bonds_T12"
+tags = ["figure", "bonds", "voc", "extension"]
+frequency = "monthly"
+path = "_output/figure_bonds.png"
+docs_path = "docs_src/charts/figure_bonds.md"
 
 
 [charts.predictor_timeseries]

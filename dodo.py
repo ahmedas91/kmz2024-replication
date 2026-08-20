@@ -23,6 +23,7 @@ from doit.tools import config_changed
 # SAMPLE_SUFFIX names the period-dependent artifacts: empty for the paper
 # period, "_{SAMPLE_END}" otherwise, so a paper run and an updated-sample run
 # coexist (see src/sample_period.py).
+from run_bonds_study import BONDS_AVERAGED_PATH, BONDS_N_SEEDS, BONDS_PER_SEED_PATH
 from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH
 from run_variable_importance import FIG11_N_SEEDS, VI_PATH
 from sample_period import SAMPLE_SUFFIX
@@ -161,6 +162,24 @@ def task_standardize():
     }
 
 
+def task_tidy_bonds():
+    """Build the tidy bond excess-return dataset from the Goyal-Welch pull"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/clean_bond_returns.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/clean_bond_returns.py",
+            "./src/pull_goyal_welch.py",
+            DATA_DIR / "goyal_welch.parquet",
+        ],
+        "targets": [DATA_DIR / "bond_returns.parquet"],
+        "clean": [],
+    }
+
+
 def task_estimate():
     """Run the recursive OOS grid on the standardized dataset (the voc engine)"""
     return {
@@ -279,6 +298,59 @@ def task_figure11():
             OUTPUT_DIR / f"figure11{SAMPLE_SUFFIX}.png",
             OUTPUT_DIR / f"figure11{SAMPLE_SUFFIX}.pdf",
             OUTPUT_DIR / f"figure11_data{SAMPLE_SUFFIX}.parquet",
+        ],
+        "clean": True,
+    }
+
+
+def task_bonds_study():
+    """Run the bonds VoC studies (government and corporate) through the API"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/run_bonds_study.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/run_bonds_study.py",
+            "./src/clean_bond_returns.py",
+            "./voc/__init__.py",
+            "./voc/oos_engine.py",
+            "./voc/performance_metrics.py",
+            "./voc/preprocessing.py",
+            "./voc/rff.py",
+            "./voc/kernel_ridge.py",
+            DATA_DIR / "bond_returns.parquet",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+        ],
+        "targets": [BONDS_AVERAGED_PATH, BONDS_PER_SEED_PATH],
+        # TRAIN_WINDOW and SAMPLE_END are visible through the target
+        # filenames; BONDS_N_SEEDS is not, so track it explicitly.
+        "uptodate": [config_changed({"BONDS_N_SEEDS": str(BONDS_N_SEEDS)})],
+        "clean": [],
+    }
+
+
+def task_figure_bonds():
+    """Plot the bonds VoC panels from the cached bond grid"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure_bonds.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/figure_bonds.py",
+            "./src/figure_style.py",
+            "./src/run_bonds_study.py",
+            BONDS_AVERAGED_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / f"figure_bonds{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure_bonds{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure_bonds_data{SAMPLE_SUFFIX}.parquet",
         ],
         "clean": True,
     }
