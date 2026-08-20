@@ -234,6 +234,40 @@ def task_figure8():
     }
 
 
+def task_nagel():
+    """Run Nagel's critique tests, then build the comparison table and figure.
+
+    Consumes the anchor forecast export written by `SAVE_FORECASTS=1 doit estimate`,
+    so run that first to create `_data/forecasts_market{suffix}.parquet`.
+    """
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/nagel_analysis.py",
+            "python ./src/table_nagel.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/nagel_analysis.py",
+            "./src/table_nagel.py",
+            "./voc/nagel.py",
+            "./voc/performance_metrics.py",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+            DATA_DIR / f"forecasts_market{SAMPLE_SUFFIX}.parquet",
+        ],
+        "targets": [
+            DATA_DIR / f"nagel_metrics{SAMPLE_SUFFIX}.parquet",
+            DATA_DIR / f"nagel_anatomy{SAMPLE_SUFFIX}.parquet",
+            DATA_DIR / f"nagel_spanning{SAMPLE_SUFFIX}.parquet",
+            OUTPUT_DIR / f"nagel_comparison_table{SAMPLE_SUFFIX}.tex",
+            OUTPUT_DIR / f"figure_nagel{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure_nagel{SAMPLE_SUFFIX}.pdf",
+        ],
+        "clean": True,
+    }
+
+
 def task_variable_importance():
     """Run the Figure 11 leave-one-out estimations (full model + 15 exclusions)"""
     return {
