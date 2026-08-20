@@ -1,52 +1,66 @@
-% Draft report subsection for issue #17 (Nagel's critique). Generated artifacts:
-%   \input{../_output/nagel_comparison_table.tex}   (from src/table_nagel.py)
-%   ../_output/figure_nagel.png
-% Citations are given in plain text so this compiles without bib entries; swap in
-% \cite keys once the report's bibliography has Nagel (SSRN 5335012) and the KMZ
-% reply (SSRN 5346842).
+% Nagel critique subsection (issue #17), \input by report_kmz.tex.
+% Generated artifacts consumed here:
+%   \input{\PathToOutput/nagel_comparison_table.tex}   (from src/table_nagel.py)
+%   \PathToOutput/figure_nagel.png
+% No hand-typed statistics: prose numbers come from report_values.tex macros.
 
 \subsection{Is the virtue of complexity just momentum? Nagel's critique}
 
-Nagel (2025, ``Seemingly Virtuous Complexity in Return Prediction,'' SSRN~5335012)
-argues that when the number of random features $P$ greatly exceeds the training
-window $T$, the ridgeless RFF forecast collapses to a Gaussian-kernel regression:
-a similarity-weighted average of the $T=12$ training-window returns. Because the
-standardized predictors are persistent, similarity is approximately recency, and
-kernel distances scale with predictor volatility, so the strategy is---mechanically
----recency-weighted, volatility-timed momentum. We run his three tests on our own
-pipeline at the anchor configuration (the ridgeless model at complexity
-$c=1{,}000$) and report what we find, whichever side it favors.
+\citet{nagel2025seemingly} argues that when the number of random features $P$
+greatly exceeds the training window $T$, the ridgeless RFF forecast collapses
+to a Gaussian-kernel regression: a similarity-weighted average of the $T=12$
+training-window returns. Because the standardized predictors are persistent,
+similarity is approximately recency, and kernel distances scale with predictor
+volatility, so the strategy is, mechanically, recency-weighted and
+volatility-timed momentum. We run his three tests on our own pipeline at the
+anchor configuration (the ridgeless model at complexity $c=1{,}000$) and
+report what we find, whichever side it favors.
 
-Table~\ref{tab:nagel} scores our replicated VoC strategy against Nagel's hand-built
-momentum benchmark---linearly declining weights on the trailing twelve standardized
-returns---on identical out-of-sample months and identical metrics (the same
-performance module used everywhere else in the project).
+Table~\ref{tab:nagel} scores our replicated VoC strategy against Nagel's
+hand-built momentum benchmark, which places linearly declining weights on the
+trailing twelve standardized returns, on identical out-of-sample months and
+identical metrics (the same performance module used everywhere else in the
+project). The benchmark's Sharpe ratio of \NagelBenchSharpe{} sits next to the
+VoC row's \NagelVoCSharpe: a strategy with no machine learning in it earns
+almost the same risk-adjusted return. One convention note: the VoC row scores
+the across-seed mean forecast path, which denoises the forecast slightly, so
+it sits a touch above the average-the-statistics value (\MktSharpe) that the
+replication reports elsewhere; the comparison within the table is
+apples-to-apples.
 
-\begin{table}[h]\centering
-\input{../_output/nagel_comparison_table.tex}
-\caption{VoC strategy versus the momentum benchmark, and the spanning
-regression.}\label{tab:nagel}
+\begin{table}[htbp]\centering
+\input{\PathToOutput/nagel_comparison_table.tex}
+\caption{The virtue of complexity is largely spanned by simple momentum. The
+VoC strategy and Nagel's recency-weighted momentum benchmark, scored on the
+same out-of-sample months with the same metric definitions, deliver similar
+performance, and the spanning regression of the VoC strategy on the benchmark
+and the static market leaves an alpha with a $t$-statistic of
+\NagelSpanAlphaT, below conventional significance.}
+\label{tab:nagel}
 \end{table}
 
-Figure~\ref{fig:nagel} anatomizes the VoC forecast by regressing it on the trailing
-twelve standardized returns; the estimated lag weights are shown against the
-benchmark's declining profile. The tighter the fit and the closer the shapes, the
-more of the VoC forecast is accounted for by recency-weighted momentum.
+Figure~\ref{fig:nagel} anatomizes the VoC forecast by regressing it on the
+trailing twelve standardized returns; the estimated lag weights are shown
+against the benchmark's declining profile. The regression explains only
+$R^2 = \NagelAnatomyRTwo$ of the forecast's variation, so the forecast
+contains more than recency-weighted momentum, even though its tradable
+performance is largely spanned by it.
 
-\begin{figure}[h]\centering
-\includegraphics[width=0.8\textwidth]{../_output/figure_nagel.png}
-\caption{Estimated lag weights of the VoC forecast versus the momentum
-benchmark.}\label{fig:nagel}
+\begin{figure}[htbp]\centering
+\includegraphics[width=0.8\textwidth]{\PathToOutput/figure_nagel.png}
+\caption{The VoC forecast is momentum-tilted but not momentum. Estimated lag
+weights of the VoC forecast on the trailing twelve standardized returns
+(regression $R^2 = \NagelAnatomyRTwo$) against the benchmark's linearly
+declining weights: the profiles share the recency tilt, but most of the
+forecast's variation is left unexplained.}
+\label{fig:nagel}
 \end{figure}
 
-The spanning regression---our VoC timing-strategy return on the benchmark return and
-a static position in the standardized market---is reported in the note to
-Table~\ref{tab:nagel}; Nagel finds this drives the VoC alpha toward zero.
-
-\paragraph{The authors' reply.} Kelly, Malamud, and Zhou (2025, SSRN~5346842,
-Section~4.1) respond that the momentum reading is a feature, not an artifact: the
-volatility standardization is economically motivated (their footnote~34), and a
-reduction to a recency-weighted average of past returns is a property any
-well-specified nonparametric return predictor would share, not evidence that the
-out-of-sample gains are spurious. We present both sides and let the replicated
-numbers speak.
+\paragraph{The authors' reply.} \citet[Section~4.1]{kelly2025reply} respond
+that the momentum reading is a feature, not an artifact: the volatility
+standardization is economically motivated, and a reduction toward a
+recency-weighted average of past returns is a property any well-specified
+nonparametric return predictor would share, not evidence that the
+out-of-sample gains are spurious. We present both sides and let the
+replicated numbers speak: the performance is real but a much simpler
+strategy captures most of it.

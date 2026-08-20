@@ -1,0 +1,240 @@
+% !TEX program = xelatex
+% The project report (issue #12). Every table is \input from _output/, every
+% figure is \includegraphics from _output/, and every number quoted in prose
+% is a macro from _output/report_values.tex (src/report_values.py). Nothing
+% statistical is hand-typed. Compile: doit compile_latex_docs (requires both
+% sample-period runs: `doit` and `SAMPLE_END=2024-12 doit`).
+
+\newcommand*{\PathToOutput}{../_output}%
+
+\documentclass[12pt]{article}
+\usepackage{my_article_header}
+\usepackage{my_common_header}
+\usepackage{natbib}
+\input{\PathToOutput/report_values.tex}
+
+\title{The Virtue of Complexity in Return Prediction:\\ A Replication}
+\author{Ahmed Alahmadi \and Jeff Key}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent We replicate the central out-of-sample results of
+\citet{kelly2024virtue}: Figures~7, 8, and 11 at the 12-month training
+window. Our replication matches the published anchor values at the ridgeless
+high-complexity configuration within about one percent (alpha $t$-statistic
+\MktAlphaT, information ratio \MktIR, Sharpe ratio \MktSharpe), reproduces
+the paper's variable-importance ranking, and extends the analysis four ways:
+updated data through 2024, government and corporate bonds, developed ex-US
+equities, and the critique of \citet{nagel2025seemingly}. The virtue of
+complexity replicates and survives updated data and bond markets; it does not
+survive the trip abroad, and most of its performance is spanned by a simple
+momentum rule.
+\end{abstract}
+
+\section{Introduction}
+
+\citet{kelly2024virtue} make a provocative claim: in return prediction,
+bigger models are better, without limit. They expand fifteen standard
+predictors into up to $P = 12{,}000$ random Fourier features, train ridge
+regressions on rolling windows of only $T=12$ months, and find that the
+market-timing performance of the resulting strategy rises monotonically with
+model complexity $c = P/T$, even though the out-of-sample $R^2$ of the
+forecasts is negative everywhere. The claim matters because it contradicts
+the intuition, standard since \citet{welch2008comprehensive}, that equity
+premium prediction is too noisy to support rich models.
+
+We replicate the paper's three headline exhibits at the 12-month training
+window: Figure~7 (forecast accuracy and strategy moments against
+complexity), Figure~8 (risk-adjusted trading performance against
+complexity), and Figure~11 (variable importance). We then rerun everything
+on data through 2024 and test external validity on bonds and international
+equities, and we implement the momentum critique of
+\citet{nagel2025seemingly}. Sections~\ref{sec:data}
+through~\ref{sec:challenges} describe the data, the summary statistics, the
+replication, the updated sample, the extensions, and the challenges.
+
+\section{Data and conventions}\label{sec:data}
+
+Predictors come from the monthly workbook maintained by Amit Goyal
+\citep{welch2008comprehensive, goyal2024comprehensive}: fourteen of the
+paper's fifteen predictors are constructed from it, and the fifteenth is the
+lagged market excess return. The market return is the workbook's CRSP
+value-weighted index return in excess of the T-bill rate; we cross-check it
+against the CRSP index pulled from WRDS, and the two series agree almost
+exactly. The bond extension uses the workbook's long-term government and
+corporate bond returns; the international extension uses the developed
+ex-US market factor from the Ken French data library.
+
+We follow the paper's conventions exactly, because the replication turned
+out to be sensitive to them. Returns are standardized by trailing 12-month
+volatility and predictors by expanding-window volatility, both strictly
+backward looking; the random-feature ridge is fit without an intercept; and
+the random features are scaled within each training window. The authors
+defend the volatility standardization and the no-intercept choice
+explicitly in their reply \citep{kelly2025reply}. Two conventions deserve
+emphasis because published sources do not pin them down and we selected
+them by validating against published anchor values: the training-window
+feature scaling is centered (standard deviations, not raw second moments),
+and the market series is the workbook's, not the WRDS pull. The analysis
+sample starts in 1930-01, after the standardization burn-in, and the paper
+period ends in 2020-12, for \PaperMonths{} months. Relative to the paper we
+economize on repetitions: 500 random-feature draws for the market grid
+(the paper uses 1{,}000), 200 for the extensions, 100 for variable
+importance, with each choice documented in the pipeline.
+
+\section{Summary statistics}\label{sec:summary}
+
+\begin{table}[htbp]\centering\footnotesize
+\input{\PathToOutput/predictor_summary_table.tex}
+\caption{The information set splits into slow and fast predictors. Panel~A
+summarizes the raw market excess return and the fifteen predictors; Panel~B
+the volatility-standardized versions the model consumes. The first-order
+autocorrelations show the split that drives everything downstream: the
+valuation ratios and yields are extremely persistent, while the return-type
+predictors (the lagged market return, bond returns, and the default and
+inflation series) move month to month. Standardization equalizes scales
+without destroying that split.}
+\label{tab:summary}
+\end{table}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{\PathToOutput/predictor_timeseries.png}
+\caption{Standardized predictors at a glance. Slow series drift over
+decades while fast series oscillate at monthly frequency; the model's
+training window is twelve months, so the fast series are where a
+twelve-month window can find variation to learn from. This is the visual
+premise of the variable-importance result in Figure~\ref{fig:eleven}.}
+\label{fig:timeseries}
+\end{figure}
+
+\section{Replication}\label{sec:replication}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{\PathToOutput/figure7.png}
+\caption{Complexity ruins the forecasts and it does not matter. Replication
+of the paper's Figure~7: out-of-sample $R^2$ (Panel~A) is negative
+everywhere and collapses at the interpolation boundary $c=1$, while the
+coefficient norm, expected strategy return, and volatility (Panels~B
+through~D) behave exactly as the paper's theory predicts. Panels in return
+units sit about a quarter below the paper's levels, a constant
+forecast-scale difference documented in the pipeline; every scale-free
+statistic matches.}
+\label{fig:seven}
+\end{figure}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{\PathToOutput/figure8.png}
+\caption{The virtue of complexity, replicated. The paper's crux figure:
+Sharpe ratio, alpha, information ratio, and alpha $t$-statistic all rise
+with complexity for every shrinkage level, despite the negative $R^2$ in
+Figure~\ref{fig:seven}. At the ridgeless $c=1{,}000$ anchor our replication
+delivers a Sharpe ratio of \MktSharpe, an information ratio of \MktIR, and
+an alpha $t$-statistic of \MktAlphaT, each within about one percent of the
+published anchor values.}
+\label{fig:eight}
+\end{figure}
+
+The contrast between Figures~\ref{fig:seven} and~\ref{fig:eight} is the
+finding, not a bug: forecast accuracy measured by $R^2$ is useless while
+the trading strategy built from the same forecasts is strong, because the
+strategy rewards getting the sign and relative magnitude right, not the
+level.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=0.9\textwidth]{\PathToOutput/figure11.png}
+\caption{Twelve months of data is enough because the model feeds on fast
+variables. Replication of the paper's Figure~11: variable importance is the
+loss in out-of-sample $R^2$ (bars) and Sharpe ratio (line) from removing
+each predictor. The lagged market return dominates (removing it costs
+\VILeaderRTwoPct{} percentage points of $R^2$), followed by the long-term
+bond return, the default return, and inflation, all fast-moving series;
+the persistent valuation ratios contribute nothing detectable, matching
+the paper's ranking.}
+\label{fig:eleven}
+\end{figure}
+
+\section{Updated sample}\label{sec:updated}
+
+Every artifact in the project regenerates on data through 2024-12
+(\UpdMonths{} months) from a single configuration change. The finding
+survives: at the ridgeless anchor the Sharpe ratio is \MktSharpeUpd{}
+(paper period \MktSharpe), the information ratio \MktIRUpd{} (\MktIR), and
+the alpha $t$-statistic \MktAlphaTUpd{} (\MktAlphaT). Performance softens
+slightly with four more years of data but the rising-with-complexity shape
+is unchanged, as Figure~\ref{fig:eightupd} shows.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{\PathToOutput/figure8_2024-12.png}
+\caption{The virtue of complexity survives updated data. The Figure~8
+panels re-estimated on 1930 through 2024: every curve retains its shape,
+with levels slightly below the paper period, so the paper's result is not
+an artifact of its sample end.}
+\label{fig:eightupd}
+\end{figure}
+
+\section{Extensions}\label{sec:extensions}
+
+\subsection{Bonds}
+
+We point the identical machinery at long-term government and corporate bond
+excess returns, both built from workbook columns, with each target's own
+lag replacing the market's.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{\PathToOutput/figure_bonds.png}
+\caption{The virtue of complexity generalizes to bonds. For both bond
+markets the out-of-sample $R^2$ stays useless while the Sharpe ratio rises
+with complexity. Corporate bonds (ridgeless Sharpe \BondCorpSharpe) come
+close to the equity market (\MktSharpe), consistent with the information
+set's rich credit content; pure duration risk (government bonds, ridgeless
+Sharpe \BondGovSharpe) supports less. Both conclusions hold on updated data
+(\BondCorpSharpeUpd{} and \BondGovSharpeUpd).}
+\label{fig:bonds}
+\end{figure}
+
+\subsection{International equities}
+
+As an external-validity test we forecast the developed ex-US market excess
+return from the Ken French library with the same US information set. Two
+caveats are built into the design: US predictors are being asked to
+forecast non-US returns, and the series only starts in 1990, leaving about
+a third of the market study's months.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{\PathToOutput/figure_intl.png}
+\caption{The shape generalizes abroad, the level does not. Sharpe ratios
+still rise with complexity, but they top out at \IntlSharpeBest{} for the
+best shrinkage level (ridgeless \IntlSharpe), a fraction of the US levels,
+and statistically indistinguishable from zero on the short sample. On
+updated data the ridgeless level falls further, to \IntlSharpeUpd. With US
+predictors and three decades of data there is no measurable international
+timing skill, only the qualitative complexity pattern.}
+\label{fig:intl}
+\end{figure}
+
+\input{nagel_subsection.tex}
+
+\section{Challenges and lessons}\label{sec:challenges}
+
+Three challenges shaped the project. First, compute: the naive primal ridge
+at $P = 12{,}000$ is infeasible on a laptop, so the engine works in the dual
+with one eigendecomposition per training window shared across all shrinkage
+levels, which makes the full 500-seed grid a minutes-scale job. Second,
+conventions: our first implementation matched the paper's shapes but missed
+the published anchor values by a wide margin, and closing the gap required a
+systematic investigation that identified the centered feature scaling and
+the workbook market series as the paper's conventions; the anchors now serve
+as permanent regression tests. Third, honesty about residuals: strategy
+moments in return units sit at about three quarters of the paper's levels, a
+constant forecast-scale difference that cancels in every ratio statistic; we
+document it rather than tune it away, since no published scale-free anchor
+pins it down. The one result we could not and did not try to rescue is the
+international study, where the honest conclusion is a null.
+
+\bibliographystyle{jpe}
+\bibliography{bibliography}
+
+\end{document}
