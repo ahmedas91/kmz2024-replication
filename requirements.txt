@@ -32,4 +32,3 @@ jupyter
 jupytext
 notebook
 chartbook[all]>=0.0.14
-plotly>=5.24.1  # used by the example notebook only; retire with issue #13

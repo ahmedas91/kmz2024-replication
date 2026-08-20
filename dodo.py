@@ -50,12 +50,6 @@ def jupyter_execute_notebook(notebook_path):
     return f"jupyter nbconvert --execute --to notebook --ClearMetadataPreprocessor.enabled=True --inplace {notebook_path}"
 def jupyter_to_html(notebook_path, output_dir=OUTPUT_DIR):
     return f"jupyter nbconvert --to html --output-dir={output_dir} {notebook_path}"
-def jupyter_to_md(notebook_path, output_dir=OUTPUT_DIR):
-    """Requires jupytext"""
-    return f"jupytext --to markdown --output-dir={output_dir} {notebook_path}"
-def jupyter_clear_output(notebook_path):
-    """Clear the output of a notebook"""
-    return f"jupyter nbconvert --ClearOutputPreprocessor.enabled=True --ClearMetadataPreprocessor.enabled=True --inplace {notebook_path}"
 # fmt: on
 
 
@@ -521,9 +515,13 @@ def task_summary_stats():
 
 
 notebook_tasks = {
-    "01_example_notebook_interactive.ipynb.py": {
-        "path": "./src/01_example_notebook_interactive.ipynb.py",
-        "file_dep": [],
+    "01_kmz_tour.ipynb.py": {
+        "path": "./src/01_kmz_tour.ipynb.py",
+        "file_dep": [
+            DATA_DIR / "kmz_dataset.parquet",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+            DATA_DIR / "oos_grid_T12.parquet",
+        ],
         "targets": [],
     },
 }
@@ -537,7 +535,7 @@ def task_run_notebooks():
     for notebook in notebook_tasks:
         pyfile_path = Path(notebook_tasks[notebook]["path"])
         notebook_path = pyfile_path.with_suffix("")  # strips .py, leaves .ipynb
-        notebook_name = notebook_path.stem  # e.g. "01_example_notebook_interactive"
+        notebook_name = notebook_path.stem  # e.g. "01_kmz_tour"
         yield {
             "name": notebook,
             "actions": [
