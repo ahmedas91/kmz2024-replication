@@ -119,3 +119,31 @@ def test_updated_output_files_exist():
     ]
     missing = [name for name in expected if not (OUTPUT_DIR / name).exists()]
     assert not missing, f"updated-sample outputs missing: {missing}"
+
+
+BONDS_GRID_PATH = (
+    DATA_DIR / f"oos_grid_bonds_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}_per_seed.parquet"
+)
+
+requires_updated_bonds = pytest.mark.skipif(
+    is_paper_period or not BONDS_GRID_PATH.exists(),
+    reason=(
+        "updated-period bonds checks run only when SAMPLE_END is non-paper "
+        "and the suffixed bond grid has been built (SAMPLE_END=... doit bonds_study)"
+    ),
+)
+
+
+@requires_updated_bonds
+def test_updated_bond_grid_structure():
+    """The updated-period bond cache mirrors the paper-period one: both
+    targets, the full cell grid, one shared seed list, finite statistics,
+    and the suffixed figure on disk."""
+    per_seed = pd.read_parquet(BONDS_GRID_PATH)
+    assert set(per_seed["target"]) == {"ltr_excess", "corpr_excess"}
+    for _, rows in per_seed.groupby("target"):
+        assert rows["P"].nunique() == 14
+        assert rows["z"].nunique() == 8  # 7 ridge levels + ridgeless
+        assert np.isfinite(rows[["r2", "sharpe"]].to_numpy()).all()
+    assert per_seed.groupby("target")["seed"].agg(frozenset).nunique() == 1
+    assert (OUTPUT_DIR / f"figure_bonds{SAMPLE_SUFFIX}.png").exists()
