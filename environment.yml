@@ -25,7 +25,6 @@ dependencies:
   - jupyter
   - jupytext
   - notebook
-  - plotly==5.24.1  # used by the example notebook only; retire with issue #13
   - pip
   - pip:
       - chartbook[all]
