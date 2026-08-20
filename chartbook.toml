@@ -71,6 +71,30 @@ path = "_data/oos_grid_T12_per_seed.parquet"
 docs_path = "docs_src/dataframes/oos_grid_T12_per_seed.md"
 
 
+[dataframes.intl_equity]
+name = "Developed ex-US market factors"
+description = "Monthly developed-ex-US market excess return (Mkt-RF, already in excess of the US one-month T-bill) and RF from the Ken French data library, converted to decimal, 1990-07 onward. The target of the international VoC study."
+sources = ["Ken French data library (Developed_ex_US_3_Factors)"]
+providers = ["Kenneth French"]
+provider_links = ["https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html"]
+tags = ["monthly", "international", "returns"]
+pull_method = "doit pull:intl_equity (src/pull_intl_equity.py via pandas_datareader; public, no credentials)"
+path = "_data/intl_equity.parquet"
+docs_path = "docs_src/dataframes/intl_equity.md"
+
+
+[dataframes.oos_grid_intl_T12]
+name = "International OOS grid statistics (T = 12)"
+description = "Across-seed mean OOS statistics of the VoC grid run on the developed-ex-US market excess return with US predictors, one row per (target, P, z). The results dataframe behind the international figure."
+sources = ["intl_equity (this project)", "kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["oos", "grid", "statistics", "international"]
+pull_method = "doit intl_study (src/run_intl_study.py driving voc.run_voc_study)"
+path = "_data/oos_grid_intl_T12.parquet"
+docs_path = "docs_src/dataframes/oos_grid_intl_T12.md"
+
+
 [dataframes.bond_returns]
 name = "Bond excess returns"
 description = "Monthly long-term government (ltr - Rfree) and corporate (corpr - Rfree) bond excess returns, 1926 onward, built from columns already in the Goyal-Welch pull. The targets of the bonds VoC study."
@@ -148,6 +172,16 @@ tags = ["figure", "bonds", "voc", "extension"]
 frequency = "monthly"
 path = "_output/figure_bonds.png"
 docs_path = "docs_src/charts/figure_bonds.md"
+
+
+[charts.figure_intl]
+name = "International equities VoC study (T = 12)"
+description = "External-validity test: OOS R2 and Sharpe ratio against model complexity for the developed-ex-US market excess return, forecast with US predictors on the 1991-2020 sample. Same style and grids as the market figures."
+dataframe = "oos_grid_intl_T12"
+tags = ["figure", "international", "voc", "extension"]
+frequency = "monthly"
+path = "_output/figure_intl.png"
+docs_path = "docs_src/charts/figure_intl.md"
 
 
 [charts.predictor_timeseries]
