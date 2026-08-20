@@ -1,8 +1,8 @@
 [project]
 name = "KMZ 2024 Replication"
 description = "Replication of Kelly, Malamud & Zhou (2024), The Virtue of Complexity in Return Prediction"
-maintainer = "ahmedas91"
-contributors = ["ahmedas91"]
+maintainer = "ahmedas91, JeffKey"
+contributors = ["ahmedas91", "JeffKey"]
 os_compatibility = ["Windows", "Linux", "macOS"]
 build = """
 conda env create -f environment.yml
