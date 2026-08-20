@@ -61,8 +61,19 @@
 # estimation engine. Shifting it again downstream would be a bug.
 
 # %%
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import pandas as pd
+
+# The pipeline modules live in src/, the kernel's working directory when doit
+# executes this notebook. Opening the executed copy from _output/ (or running
+# from the repo root) starts the kernel elsewhere, so find src/ explicitly.
+for _dir in [Path.cwd(), *Path.cwd().parents]:
+    if (_dir / "src" / "settings.py").exists():
+        sys.path.insert(0, str(_dir / "src"))
+        break
 
 from sample_period import trim_to_sample
 from settings import config
