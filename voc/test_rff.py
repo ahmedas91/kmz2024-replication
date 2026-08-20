@@ -65,9 +65,7 @@ def test_gamma_is_a_parameter():
     omega = draw_rff_weights(30, 15, seed=1)
     S1 = compute_rff(G, omega, gamma=1.0)
     S2 = compute_rff(G, omega, gamma=2.0)
-    np.testing.assert_allclose(
-        S2[:, 0::2], 2.0 * S1[:, 0::2] * S1[:, 1::2], atol=1e-12
-    )
+    np.testing.assert_allclose(S2[:, 0::2], 2.0 * S1[:, 0::2] * S1[:, 1::2], atol=1e-12)
 
 
 def test_compute_rff_rejects_mismatched_omega():
@@ -84,20 +82,23 @@ def test_standardization_uses_training_scale_only():
     S_train = compute_rff(rng.standard_normal((12, 15)), draw_rff_weights(20, 15, 2))
     S_test = S_train[0] * 1000.0  # one OOS row at 1000x scale
 
-    train_std, test_std = standardize_by_training_window(S_train, S_test)
-    # training features sit at unit uncentered scale (the default) ...
-    np.testing.assert_allclose(np.sqrt(np.mean(train_std ** 2, axis=0)), 1.0, atol=1e-9)
+    train_std, test_std = standardize_by_training_window(
+        S_train, S_test, uncentered=True
+    )
+    # training features sit at unit uncentered scale (uncentered=True) ...
+    np.testing.assert_allclose(np.sqrt(np.mean(train_std**2, axis=0)), 1.0, atol=1e-9)
     # ... and the test row is still 1000x its matching training row.
     np.testing.assert_allclose(test_std, train_std[0] * 1000.0, rtol=1e-9)
 
 
-def test_centered_path_gives_unit_sample_sd():
-    """The centered path (uncentered=False) uses ddof=1, so each standardized
-    training column has sample SD 1."""
+def test_centered_default_gives_unit_sample_sd():
+    """The DEFAULT path is the centered convention pinned by the issue #9
+    anchor checks: ddof=1, so each standardized training column has sample
+    SD 1 without passing any kwarg."""
     rng = np.random.default_rng(5)
     S_train = compute_rff(rng.standard_normal((40, 15)), draw_rff_weights(25, 15, 5))
     S_test = S_train[:3]
-    train_std, _ = standardize_by_training_window(S_train, S_test, uncentered=False)
+    train_std, _ = standardize_by_training_window(S_train, S_test)
     np.testing.assert_allclose(train_std.std(axis=0, ddof=1), 1.0, atol=1e-9)
 
 

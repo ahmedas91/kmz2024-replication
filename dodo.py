@@ -15,6 +15,17 @@ import shutil
 from os import environ
 from pathlib import Path
 
+from doit.tools import config_changed
+
+# The estimation drivers own their output paths and run config; importing them
+# here keeps the build graph and the scripts from ever disagreeing. The modules
+# are import-light by design (no pandas/engine imports at top level).
+# SAMPLE_SUFFIX names the period-dependent artifacts: empty for the paper
+# period, "_{SAMPLE_END}" otherwise, so a paper run and an updated-sample run
+# coexist (see src/sample_period.py).
+from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH
+from run_variable_importance import FIG11_N_SEEDS, VI_PATH
+from sample_period import SAMPLE_SUFFIX
 from settings import config
 
 DOIT_CONFIG = {"backend": "sqlite3", "dep_file": "./.doit-db.sqlite"}
@@ -25,10 +36,10 @@ DATA_DIR = config("DATA_DIR")
 MANUAL_DATA_DIR = config("MANUAL_DATA_DIR")
 OUTPUT_DIR = config("OUTPUT_DIR")
 OS_TYPE = config("OS_TYPE")
-TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
 ## Helpers for handling Jupyter Notebook tasks
 environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
+
 
 # fmt: off
 ## Helper functions for automatic execution of Jupyter notebooks
@@ -152,8 +163,6 @@ def task_standardize():
 
 def task_estimate():
     """Run the recursive OOS grid on the standardized dataset (the voc engine)"""
-    grid = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}.parquet"
-    per_seed = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}_per_seed.parquet"
     return {
         "actions": [
             "python ./src/settings.py",
@@ -161,15 +170,117 @@ def task_estimate():
         ],
         "file_dep": [
             "./src/settings.py",
+            "./src/sample_period.py",
             "./src/run_estimation.py",
+            "./voc/__init__.py",
             "./voc/oos_engine.py",
             "./voc/performance_metrics.py",
             "./voc/rff.py",
             "./voc/kernel_ridge.py",
             DATA_DIR / "kmz_dataset_standardized.parquet",
         ],
-        "targets": [grid, per_seed],
+        "targets": [AVERAGED_PATH, PER_SEED_PATH],
+        # TRAIN_WINDOW and SAMPLE_END are visible through the target
+        # filenames; N_SEEDS is not, so track it explicitly or a changed
+        # .env would silently reuse a stale grid.
+        "uptodate": [config_changed({"N_SEEDS": str(N_SEEDS)})],
         "clean": [],
+    }
+
+
+def task_figure7():
+    """Replicate the paper's Figure 7 from the cached OOS grid"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure7.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/figure7.py",
+            "./src/figure_style.py",
+            AVERAGED_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / f"figure7{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure7{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure7_data{SAMPLE_SUFFIX}.parquet",
+        ],
+        "clean": True,
+    }
+
+
+def task_figure8():
+    """Replicate the paper's Figure 8 from the cached OOS grid"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure8.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/figure8.py",
+            "./src/figure_style.py",
+            AVERAGED_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / f"figure8{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure8{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure8_data{SAMPLE_SUFFIX}.parquet",
+        ],
+        "clean": True,
+    }
+
+
+def task_variable_importance():
+    """Run the Figure 11 leave-one-out estimations (full model + 15 exclusions)"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/run_variable_importance.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/run_variable_importance.py",
+            "./voc/__init__.py",
+            "./voc/oos_engine.py",
+            "./voc/performance_metrics.py",
+            "./voc/rff.py",
+            "./voc/kernel_ridge.py",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+        ],
+        "targets": [VI_PATH],
+        # TRAIN_WINDOW and SAMPLE_END are visible through the target
+        # filename; FIG11_N_SEEDS is not, so track it explicitly or a
+        # changed .env would silently reuse a stale cache.
+        "uptodate": [config_changed({"FIG11_N_SEEDS": str(FIG11_N_SEEDS)})],
+        "clean": [],
+    }
+
+
+def task_figure11():
+    """Replicate the paper's Figure 11 from the cached variable-importance runs"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/figure11.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/figure11.py",
+            "./src/figure_style.py",
+            VI_PATH,
+        ],
+        "targets": [
+            OUTPUT_DIR / f"figure11{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure11{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure11_data{SAMPLE_SUFFIX}.parquet",
+        ],
+        "clean": True,
     }
 
 
@@ -204,6 +315,7 @@ def task_summary_stats():
     """Generate summary statistics tables and plots"""
     file_dep = [
         "./src/settings.py",
+        "./src/sample_period.py",
         "./src/table_predictor_summary.py",
         "./src/plot_predictor_timeseries.py",
         "./src/clean_goyal_welch.py",
@@ -212,9 +324,9 @@ def task_summary_stats():
         DATA_DIR / "kmz_dataset_standardized.parquet",
     ]
     file_output = [
-        "predictor_summary_table.tex",
-        "predictor_timeseries.png",
-        "predictor_timeseries.pdf",
+        f"predictor_summary_table{SAMPLE_SUFFIX}.tex",
+        f"predictor_timeseries{SAMPLE_SUFFIX}.png",
+        f"predictor_timeseries{SAMPLE_SUFFIX}.pdf",
     ]
     targets = [OUTPUT_DIR / file for file in file_output]
 
@@ -243,7 +355,7 @@ def task_run_notebooks():
     """Preps the notebooks for presentation format.
     Execute notebooks if the script version of it has been changed.
     """
-    for notebook in notebook_tasks.keys():
+    for notebook in notebook_tasks:
         pyfile_path = Path(notebook_tasks[notebook]["path"])
         notebook_path = pyfile_path.with_suffix("")  # strips .py, leaves .ipynb
         notebook_name = notebook_path.stem  # e.g. "01_example_notebook_interactive"
@@ -316,6 +428,7 @@ def task_compile_latex_docs():
         "clean": True,
     }
 
+
 sphinx_targets = [
     "./docs/index.html",
 ]
@@ -324,8 +437,7 @@ sphinx_targets = [
 def task_build_chartbook_site():
     """Compile Sphinx Docs"""
     notebook_scripts = [
-        Path(notebook_tasks[notebook]["path"])
-        for notebook in notebook_tasks.keys()
+        Path(notebook_tasks[notebook]["path"]) for notebook in notebook_tasks
     ]
     file_dep = [
         "./README.md",
@@ -348,7 +460,11 @@ def task_build_chartbook_site():
 
 def task_run_pytest():
     """Run pytest and save results to OUTPUT_DIR"""
-    src_py_files = list(Path("./src").glob("*.py")) + list(Path("./voc").glob("*.py"))
+    # Every directory pytest collects from; extend this tuple when a new code
+    # package appears so editing its tests retriggers the task.
+    tested_py_files = [
+        path for folder in ("./src", "./voc") for path in Path(folder).glob("*.py")
+    ]
     test_output = OUTPUT_DIR / "pytest_results.xml"
 
     def run_pytest():
@@ -356,6 +472,7 @@ def task_run_pytest():
 
         result = subprocess.run(
             ["pytest", f"--junitxml={test_output}"],
+            check=False,  # the returncode is inspected below
         )
         if result.returncode != 0:
             # Remove the XML so doit won't consider the target up-to-date
@@ -365,7 +482,7 @@ def task_run_pytest():
     return {
         "actions": [run_pytest],
         "targets": [test_output],
-        "file_dep": src_py_files,
+        "file_dep": tested_py_files,
         "clean": True,
         "verbosity": 2,
     }

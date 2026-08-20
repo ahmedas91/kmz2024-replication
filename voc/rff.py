@@ -110,7 +110,7 @@ def compute_rff(
 
 
 def standardize_by_training_window(
-    S_train: np.ndarray, S_test: np.ndarray, *, uncentered: bool = True
+    S_train: np.ndarray, S_test: np.ndarray, *, uncentered: bool = False
 ):
     """Scale features by TRAINING-window volatility only (footnote 39).
 
@@ -126,14 +126,16 @@ def standardize_by_training_window(
     S_test : np.ndarray
         ``(P,)`` or ``(m, P)`` out-of-sample features, scaled by the SAME divisor.
     uncentered : bool
-        If True (default), scale by the uncentered volatility
-        ``sqrt(mean(S_train**2))``; if False, by the centered standard deviation
-        (``ddof=1``, matching ``standardize_kmz.py``). Footnote 39 says only
-        "standard deviations", which reads as the centered SD, while footnote 34's
-        explicit uncentered exception is stated for RETURNS; the two conventions
-        differ materially for RFFs because cos columns have means near +1. The
-        default is left uncentered pending an empirical check against the paper's
-        Figure 7 levels in the OOS engine (issue #7), where the winner is pinned.
+        If False (default), scale by the centered standard deviation
+        (``ddof=1``); if True, by the uncentered volatility
+        ``sqrt(mean(S_train**2))``. The two conventions differ materially for
+        RFFs because cos columns have means near +1. CENTERED is the pinned
+        convention: footnote 39 says "standard deviations" (footnote 34's
+        uncentered exception is stated for RETURNS only), and the issue #9
+        anchor check confirmed it empirically (with the centered scale the
+        Figure 8 ridgeless anchors land within ~1%, e.g. alpha t-stat 2.78 vs
+        the paper's 2.81; uncentered leaves it at 1.75-2.2 depending on the
+        market series). The kwarg is retained for A/B checks.
 
     Returns
     -------
@@ -150,7 +152,7 @@ def standardize_by_training_window(
             f"{S_train.shape[1]}; got {S_test.shape}"
         )
     if uncentered:
-        scale = np.sqrt(np.mean(S_train ** 2, axis=0))
+        scale = np.sqrt(np.mean(S_train**2, axis=0))
     else:
         scale = S_train.std(axis=0, ddof=1)
     # Degenerate columns (a near-constant feature, or a NaN/inf scale) are left

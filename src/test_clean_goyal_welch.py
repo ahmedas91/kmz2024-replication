@@ -3,8 +3,9 @@
 Validates the parquet produced by `clean_goyal_welch.py`: the exact predictor
 set, the spread and log-ratio constructions against the raw Goyal-Welch
 columns, the no-lookahead convention for the lagged-return predictor, the
-excess-return cross-check against the workbook's own S&P 500 series, and a
-clean monthly axis with no missing values over the paper's 1926-2020 sample.
+target identity (mkt_excess is exactly the workbook return minus Rfree) plus
+the independent WRDS CRSP cross-check, and a clean monthly axis with no
+missing values over the paper's 1926-2020 sample.
 The whole module skips (rather than fails) when the parquet has not been
 built yet, since data never ships with the repository.
 """
@@ -81,11 +82,35 @@ def test_no_lookahead_lag_predictor(kmz):
     )
 
 
-def test_excess_return_cross_check(merged):
-    """vwretd-based excess return tracks the workbook's S&P 500 series."""
-    sp_excess = merged["ret"] - merged["Rfree"]
-    corr = merged["mkt_excess"].corr(sp_excess)
-    assert corr > 0.98, f"correlation with CRSP S&P 500 excess return: {corr}"
+def test_target_is_workbook_excess_return(merged):
+    """mkt_excess equals the workbook market return minus Rfree exactly.
+
+    This is the series the paper's Figure 8 anchors validate (issue #9):
+    with it the ridgeless anchors land within ~1 percent, while the WRDS
+    total-market vwretd leaves them ~20 percent short."""
+    np.testing.assert_allclose(
+        merged["mkt_excess"], merged["ret"] - merged["Rfree"], atol=1e-12
+    )
+
+
+def test_wrds_crsp_cross_check(kmz):
+    """The independently pulled WRDS CRSP value-weighted excess return tracks
+    the workbook-based target closely (the same guard the build enforces)."""
+    msix_path = DATA_DIR / "CRSP_MSIX.parquet"
+    if not msix_path.exists():
+        pytest.skip("CRSP_MSIX.parquet not found; run `doit pull:crsp_stock` first")
+    import pull_CRSP_stock
+    import pull_goyal_welch
+
+    msix = pull_CRSP_stock.load_CRSP_index_files(data_dir=DATA_DIR)
+    gw = pull_goyal_welch.load_goyal_welch(data_dir=DATA_DIR)
+    index = msix[["caldt", "vwretd"]].copy()
+    index["date"] = pd.to_datetime(index["caldt"]) + pd.offsets.MonthEnd(0)
+    merged = kmz.merge(index[["date", "vwretd"]], on="date", how="inner")
+    merged = merged.merge(gw[["date", "Rfree"]], on="date", how="inner")
+    wrds_excess = merged["vwretd"] - merged["Rfree"]
+    corr = merged["mkt_excess"].corr(wrds_excess)
+    assert corr > 0.98, f"correlation with WRDS CRSP excess return: {corr}"
 
 
 def test_date_axis_span_and_completeness(kmz):
