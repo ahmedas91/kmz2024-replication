@@ -23,13 +23,18 @@ file targets in `_data/` or `_output/`; `doit` runs only what is stale.
 | Standardize | `standardize` | `kmz_dataset_standardized.parquet`: backward-looking volatility standardization, the analysis-ready dataset from 1930-01 |
 | Estimate | `estimate`, `export_forecasts`, `variable_importance`, `bonds_study`, `intl_study`, `nagel` | Out-of-sample statistics grids per study, the anchor forecast export, the variable-importance runs, the Nagel critique results |
 | Present | `figure7`, `figure8`, `figure11`, `figure_bonds`, `figure_intl`, `summary_stats`, `report_values` | Figures, the summary table, and the generated LaTeX macros, all in `_output/` |
-| Publish | `compile_latex_docs`, `run_notebooks`, `build_chartbook_site`, `run_pytest` | The report and slide PDFs in `reports/`, the docs site in `docs/` |
+| Publish | `compile_latex_docs`, `run_notebooks`, `build_chartbook_site`, `run_pytest` | The report and slide PDFs in `reports/`, the executed tour notebook, the docs site in `docs/` |
 
 Estimation math and conventions live in the `voc` package
 (`voc.run_voc_study` runs a study on any target and predictor set); the
 timing and standardization conventions are pinned in the module docstrings
 of `voc/oos_engine.py`, `src/clean_goyal_welch.py`, and
 `src/standardize_kmz.py`, and enforced by tests.
+
+For a guided walk through the data and the estimation mechanics, start with
+the tour notebook (`src/01_kmz_tour.ipynb.py`, executed by
+`doit run_notebooks` to `_output/01_kmz_tour.html`) or browse the docs site
+(`doit build_chartbook_site`, then open `docs/index.html`).
 
 ## Setup and run
 
