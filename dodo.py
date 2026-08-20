@@ -565,30 +565,80 @@ def task_run_notebooks():
 ###############################################################
 
 
+def task_report_values():
+    """Generate the LaTeX macros the report quotes in prose (no hand-typed stats)
+
+    Depends on BOTH sample-period runs' caches (like the report): run
+    `doit` and `SAMPLE_END=2024-12 doit` once each before compiling.
+    """
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/report_values.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/report_values.py",
+            "./src/figure11.py",
+            "./src/sample_period.py",
+            DATA_DIR / "kmz_dataset_standardized.parquet",
+            DATA_DIR / "oos_grid_T12.parquet",
+            DATA_DIR / "oos_grid_T12_2024-12.parquet",
+            DATA_DIR / "variable_importance_T12.parquet",
+            DATA_DIR / "oos_grid_bonds_T12.parquet",
+            DATA_DIR / "oos_grid_bonds_T12_2024-12.parquet",
+            DATA_DIR / "oos_grid_intl_T12.parquet",
+            DATA_DIR / "oos_grid_intl_T12_2024-12.parquet",
+            DATA_DIR / "nagel_metrics.parquet",
+            DATA_DIR / "nagel_spanning.parquet",
+        ],
+        "targets": [OUTPUT_DIR / "report_values.tex"],
+        "clean": True,
+    }
+
+
 def task_compile_latex_docs():
     """Compile the LaTeX documents to PDFs
 
-    Currently just the presentation deck seed (the project report is issue
-    #12). The deck includes the Figure 8 replication, so depending on that
-    OUTPUT (not the script) makes doit order the tasks correctly. The deck
-    shows the PAPER-period figure by design, so the bare figure8.png must
-    exist; a clone configured only with a non-paper SAMPLE_END should run
-    the default paper period once first.
+    The project report (report_kmz.tex) and the presentation deck. Both
+    embed PAPER-period figures by design (the report also embeds updated
+    ones), so both sample-period runs must exist; a clone configured only
+    with a non-paper SAMPLE_END should run the default paper period first.
+    Depending on the OUTPUTS (not the scripts) makes doit order the tasks.
     """
     file_dep = [
+        "./reports/report_kmz.tex",
+        "./reports/nagel_subsection.tex",
+        "./reports/bibliography.bib",
+        "./reports/my_article_header.sty",
         "./reports/slides_example.tex",
         "./reports/my_beamer_header.sty",
         "./reports/my_common_header.sty",
+        OUTPUT_DIR / "report_values.tex",
+        OUTPUT_DIR / "predictor_summary_table.tex",
+        OUTPUT_DIR / "nagel_comparison_table.tex",
+        OUTPUT_DIR / "predictor_timeseries.png",
+        OUTPUT_DIR / "figure7.png",
         OUTPUT_DIR / "figure8.png",
+        OUTPUT_DIR / "figure8_2024-12.png",
+        OUTPUT_DIR / "figure11.png",
+        OUTPUT_DIR / "figure_bonds.png",
+        OUTPUT_DIR / "figure_intl.png",
+        OUTPUT_DIR / "figure_nagel.png",
     ]
     targets = [
+        "./reports/report_kmz.pdf",
         "./reports/slides_example.pdf",
     ]
 
     return {
+        # No latexmk -c clean step: the aux files (especially the .bbl) stay
+        # next to the sources, all gitignored, so a single-pass IDE rebuild
+        # (LaTeX Workshop honoring the xelatex magic comment) still resolves
+        # every citation instead of printing "?".
         "actions": [
-            "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_example.tex",  # Clean
+            "latexmk -xelatex -halt-on-error -cd ./reports/report_kmz.tex",
+            "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",
         ],
         "targets": targets,
         "file_dep": file_dep,
