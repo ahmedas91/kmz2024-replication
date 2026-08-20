@@ -34,11 +34,11 @@ from voc.preprocessing import (
 )
 
 __all__ = [
-    "run_voc_study",
+    "compute_metrics",
+    "expanding_vol",
     "run_grid",
     "run_recursive_oos",
-    "compute_metrics",
+    "run_voc_study",
     "standardize_inputs",
     "trailing_uncentered_vol",
-    "expanding_vol",
 ]

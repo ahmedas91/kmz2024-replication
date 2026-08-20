@@ -53,7 +53,9 @@ DATA_DIR = Path(config("DATA_DIR"))
 N_SEEDS = config("N_SEEDS", default=500, cast=int)
 N_JOBS = config("N_JOBS", default=-1, cast=int)
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
-SAVE_FORECASTS = str(config("SAVE_FORECASTS", default="0", cast=str)).strip().lower() in (
+SAVE_FORECASTS = str(
+    config("SAVE_FORECASTS", default="0", cast=str)
+).strip().lower() in (
     "1",
     "true",
     "yes",
@@ -94,8 +96,12 @@ def main():
 
     start = time.perf_counter()
     per_seed, averaged = run_voc_study(
-        target, predictors, dates=dates, T=TRAIN_WINDOW,
-        seeds=range(N_SEEDS), n_jobs=N_JOBS,
+        target,
+        predictors,
+        dates=dates,
+        T=TRAIN_WINDOW,
+        seeds=range(N_SEEDS),
+        n_jobs=N_JOBS,
     )
     print(
         f"[estimate] finished in {time.perf_counter() - start:.1f}s - "
@@ -111,10 +117,18 @@ def main():
         print(f"[estimate] exporting anchor forecasts (study_name={study_name})")
         start = time.perf_counter()
         run_voc_study(
-            target, predictors, dates=dates, T=TRAIN_WINDOW,
-            p_grid=(ANCHOR_P,), z_grid=(ANCHOR_Z,), include_ridgeless=True,
-            seeds=range(N_SEEDS), n_jobs=N_JOBS,
-            save_forecasts=True, study_name=study_name, data_dir=DATA_DIR,
+            target,
+            predictors,
+            dates=dates,
+            T=TRAIN_WINDOW,
+            p_grid=(ANCHOR_P,),
+            z_grid=(ANCHOR_Z,),
+            include_ridgeless=True,
+            seeds=range(N_SEEDS),
+            n_jobs=N_JOBS,
+            save_forecasts=True,
+            study_name=study_name,
+            data_dir=DATA_DIR,
         )
         print(
             f"[estimate] wrote forecasts_{study_name}.parquet in "
