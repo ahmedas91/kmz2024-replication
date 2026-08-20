@@ -457,33 +457,6 @@ def task_figure_intl():
     }
 
 
-def task_template_examples():
-    """Run the project template's demo scripts (example LaTeX docs need them)"""
-    file_dep = [
-        "./src/settings.py",
-        "./src/example_table.py",
-        "./src/pandas_to_latex_demo.py",
-        "./src/example_plot.py",
-    ]
-    file_output = [
-        "example_table.tex",
-        "pandas_to_latex_simple_table1.tex",
-        "example_plot.png",
-    ]
-    targets = [OUTPUT_DIR / file for file in file_output]
-
-    return {
-        "actions": [
-            "python ./src/example_table.py",
-            "python ./src/pandas_to_latex_demo.py",
-            "python ./src/example_plot.py",
-        ],
-        "targets": targets,
-        "file_dep": file_dep,
-        "clean": True,
-    }
-
-
 def task_summary_stats():
     """Generate summary statistics tables and plots"""
     file_dep = [
@@ -560,41 +533,26 @@ def task_run_notebooks():
 
 
 def task_compile_latex_docs():
-    """Compile the LaTeX documents to PDFs"""
+    """Compile the LaTeX documents to PDFs
+
+    Currently just the presentation deck seed (the project report is issue
+    #12). The deck includes the Figure 8 replication, so depending on that
+    OUTPUT (not the script) makes doit order the tasks correctly.
+    """
     file_dep = [
-        "./reports/report_example.tex",
-        "./reports/my_article_header.sty",
         "./reports/slides_example.tex",
         "./reports/my_beamer_header.sty",
         "./reports/my_common_header.sty",
-        "./reports/report_simple_example.tex",
-        "./reports/slides_simple_example.tex",
-        # Outputs of task_template_examples that the example docs \input or
-        # \includegraphics; depending on the outputs (not the scripts) makes
-        # doit order the tasks correctly.
-        OUTPUT_DIR / "example_table.tex",
-        OUTPUT_DIR / "pandas_to_latex_simple_table1.tex",
-        OUTPUT_DIR / "example_plot.png",
+        OUTPUT_DIR / "figure8.png",
     ]
     targets = [
-        "./reports/report_example.pdf",
         "./reports/slides_example.pdf",
-        "./reports/report_simple_example.pdf",
-        "./reports/slides_simple_example.pdf",
     ]
 
     return {
         "actions": [
-            # My custom LaTeX templates
-            "latexmk -xelatex -halt-on-error -cd ./reports/report_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/report_example.tex",  # Clean
             "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",  # Compile
             "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_example.tex",  # Clean
-            # Simple templates based on small adjustments to Overleaf templates
-            "latexmk -xelatex -halt-on-error -cd ./reports/report_simple_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/report_simple_example.tex",  # Clean
-            "latexmk -xelatex -halt-on-error -cd ./reports/slides_simple_example.tex",  # Compile
-            "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_simple_example.tex",  # Clean
         ],
         "targets": targets,
         "file_dep": file_dep,

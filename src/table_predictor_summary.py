@@ -1,7 +1,7 @@
 """Generate the predictor summary-statistics LaTeX table.
 
-Builds a two-panel table following the stitched-``\\midrule`` pattern of
-``example_table.py``: Panel A summarizes the raw tidy dataset
+Builds a two-panel table with a stitched ``\\midrule`` between the panels:
+Panel A summarizes the raw tidy dataset
 (clean_goyal_welch, 1926 onward) and Panel B the volatility-standardized
 analysis dataset (standardize_kmz, 1930 onward). Rows are the market excess
 return plus the 15 predictors in the paper's footnote-33 order, labeled with
