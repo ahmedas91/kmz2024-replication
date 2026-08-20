@@ -29,13 +29,13 @@ print(f"Using DATA_DIR: {DATA_DIR}")
 ```
 and run
 ```
->>> python myexample.py --DATA_DIR=/path/to/data
+$ python myexample.py --DATA_DIR=/path/to/data
 /path/to/data
 ```
 and compare to
 ```
->>> export DATA_DIR=/path/to/other
->>> python myexample.py
+$ export DATA_DIR=/path/to/other
+$ python myexample.py
 /path/to/other
 ```
 
@@ -65,17 +65,17 @@ def find_all_caps_cli_vars(argv=sys.argv):
     {'DATA_DIR': '/path/to/data', 'MANUAL_DATA_DIR': '/path/to/manual_data'}
     ```
 
-    For example:
+    For example (lowercase long options like ``--f=...`` are ignored):
     ```
     >>> argv = [
-        '/opt/homebrew/Caskroom/mambaforge/base/envs/ftsf/lib/python3.12/site-packages/ipykernel_launcher.py',
-        '--f=/Users/jbejarano/Library/Jupyter/runtime/kernel-v37ea18e94713e364855d5610175b766ee99909eab.json',
-        '--DATA_DIR=/path/to/data',
-        '--MANUAL_DATA_DIR=/path/to/manual_data'
-    ]
-    >>> cli_vars = find_all_caps_cli_vars(argv)
-    >>> cli_vars
+    ...     "ipykernel_launcher.py",
+    ...     "--f=/tmp/kernel-abc123.json",
+    ...     "--DATA_DIR=/path/to/data",
+    ...     "--MANUAL_DATA_DIR=/path/to/manual_data",
+    ... ]
+    >>> find_all_caps_cli_vars(argv)
     {'DATA_DIR': '/path/to/data', 'MANUAL_DATA_DIR': '/path/to/manual_data'}
+
     ```
     """
     result = {}
@@ -131,8 +131,9 @@ else:
 
 
 ## Dates
-defaults["START_DATE"] = datetime.strptime("1913-01-01", "%Y-%m-%d")
-defaults["END_DATE"] = datetime.strptime("2024-12-31", "%Y-%m-%d")
+# Calendar bounds for the monthly data pulls; deliberately timezone-naive.
+defaults["START_DATE"] = datetime.strptime("1913-01-01", "%Y-%m-%d")  # noqa: DTZ007
+defaults["END_DATE"] = datetime.strptime("2024-12-31", "%Y-%m-%d")  # noqa: DTZ007
 
 
 ## File paths
@@ -143,11 +144,13 @@ def if_relative_make_abs(path):
     Example
     -------
     ```
-    >>> if_relative_make_abs(Path('_data'))
-    WindowsPath('C:/Users/jdoe/GitRepositories/cookiecutter_chartbook/_data')
+    >>> if_relative_make_abs(Path("_data")) == (defaults["BASE_DIR"] / "_data").resolve()
+    True
 
-    >>> if_relative_make_abs(Path("C:/Users/jdoe/GitRepositories/cookiecutter_chartbook/_output"))
-    WindowsPath('C:/Users/jdoe/GitRepositories/cookiecutter_chartbook/_output')
+    >>> already_absolute = Path.cwd() / "_output"
+    >>> if_relative_make_abs(already_absolute) == already_absolute.resolve()
+    True
+
     ```
     """
     path = Path(path)

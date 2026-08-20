@@ -16,3 +16,12 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["voc"]
+
+[tool.ruff]
+# Assistant tooling docs, not project code.
+extend-exclude = [".claude"]
+
+[tool.pytest.ini_options]
+# Jupytext notebook scripts are notebooks, not importable modules (their
+# names start with a digit); keep --doctest-modules collection off them.
+addopts = "--ignore-glob=*.ipynb.py"
