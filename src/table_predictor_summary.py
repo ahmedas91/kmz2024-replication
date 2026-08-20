@@ -8,19 +8,31 @@ return plus the 15 predictors in the paper's footnote-33 order, labeled with
 the paper's display names ("b/m", "lag mkt"). Columns: count, mean, SD, min,
 max, and the first-order autocorrelation AC(1), which exposes the
 persistence split between the slow valuation ratios and yields and the
-fast return-type predictors. Writes ``_output/predictor_summary_table.tex``.
+fast return-type predictors. Both panels are trimmed to the configured
+estimation sample (through ``SAMPLE_END``; the panel headers show the span),
+so the default table describes the paper period and an updated-sample run
+writes its own suffixed table alongside (see ``sample_period``). Writes
+``_output/predictor_summary_table{suffix}.tex``.
 """
 
 from pathlib import Path
 
 import pandas as pd
 
-from settings import config
 from clean_goyal_welch import PREDICTOR_COLUMNS, load_kmz_dataset
+from sample_period import SAMPLE_END, SAMPLE_SUFFIX
+from settings import config
 from standardize_kmz import load_standardized_dataset
 
 DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
+
+
+def trim_to_sample(df, sample_end=SAMPLE_END):
+    """Rows of ``df`` up to and including the configured last sample month."""
+    cutoff = pd.Timestamp(sample_end) + pd.offsets.MonthEnd(0)
+    return df.loc[df["date"] <= cutoff].reset_index(drop=True)
+
 
 # Paper display names (Figure 11 labels), keyed by our column names.
 DISPLAY_NAMES = {
@@ -71,8 +83,8 @@ def summary_panel(df, panel_label):
 
 def build_summary_table(data_dir=DATA_DIR):
     """Return the stitched two-panel LaTeX table as a string."""
-    raw = load_kmz_dataset(data_dir=data_dir)
-    standardized = load_standardized_dataset(data_dir=data_dir)
+    raw = trim_to_sample(load_kmz_dataset(data_dir=data_dir))
+    standardized = trim_to_sample(load_standardized_dataset(data_dir=data_dir))
 
     def span(df):
         return f"{df['date'].min():%Y-%m} to {df['date'].max():%Y-%m}"
@@ -97,6 +109,6 @@ def build_summary_table(data_dir=DATA_DIR):
 
 if __name__ == "__main__":
     table = build_summary_table(data_dir=DATA_DIR)
-    path = OUTPUT_DIR / "predictor_summary_table.tex"
+    path = OUTPUT_DIR / f"predictor_summary_table{SAMPLE_SUFFIX}.tex"
     with open(path, "w") as text_file:
         text_file.write(table)

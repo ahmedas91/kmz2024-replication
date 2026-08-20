@@ -26,7 +26,9 @@ Config (via ``.env`` / command line):
   N_JOBS         joblib parallelism across seeds (default -1 = all cores)
   TRAIN_WINDOW   rolling training window T (default 12); in the output filename
   SAMPLE_END     last month (YYYY-MM) of the estimation sample (default
-                 2020-12, the paper's sample end)
+                 2020-12, the paper's sample end). A non-paper value suffixes
+                 the output filename with the sample end (see
+                 ``sample_period``), so both runs coexist.
 
 ``dodo.py`` imports VI_PATH and the config constants from this module. Keep
 module import light (no pandas/engine imports at top level) so that stays cheap.
@@ -40,15 +42,15 @@ from pathlib import Path
 # (which puts src/, not the repo root, on sys.path). Proper packaging is issue #14.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from sample_period import SAMPLE_END, SAMPLE_SUFFIX
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 FIG11_N_SEEDS = config("FIG11_N_SEEDS", default=100, cast=int)
 N_JOBS = config("N_JOBS", default=-1, cast=int)
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
-SAMPLE_END = config("SAMPLE_END", default="2020-12", cast=str)
 
-VI_PATH = DATA_DIR / f"variable_importance_T{TRAIN_WINDOW}.parquet"
+VI_PATH = DATA_DIR / f"variable_importance_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}.parquet"
 
 # The paper's Figure 11 setting: the highest-complexity model on the grid at
 # heavy shrinkage (P = 12,000, z = 10^3), ridge only.

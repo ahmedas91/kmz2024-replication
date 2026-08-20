@@ -29,6 +29,47 @@ doit
 And that's it!
 
 
+### Paper period vs. updated sample
+
+Every estimation-dependent artifact is driven by the `SAMPLE_END` setting
+(`.env` / environment variable / command line; see `src/sample_period.py`).
+The default, `SAMPLE_END=2020-12`, reproduces the paper's 1930-01 to 2020-12
+estimation sample and writes the bare canonical filenames (`figure7.png`,
+`_data/oos_grid_T12.parquet`, ...). Any other value appends `_{SAMPLE_END}`
+to those filenames, so both runs coexist side by side. To produce the
+updated-sample results through 2024-12 with zero code edits:
+
+```bash
+doit                                    # paper period (bare filenames)
+SAMPLE_END=2024-12 doit                 # updated sample (figure7_2024-12.png, ...)
+```
+
+(or edit `SAMPLE_END` in `.env` and rerun `doit`). The pulls, the tidy
+dataset, and the standardized dataset are period-independent: they always
+store the full available history (bounded only by `START_DATE`/`END_DATE`)
+and are trimmed downstream, so switching `SAMPLE_END` does not re-pull
+anything. Once both artifact sets exist, switching back and forth never
+recomputes the estimation grids; only the (seconds-fast, deterministic)
+figure tasks redraw on a switch, because their grid dependency path changes
+with the period.
+
+Data vintage used for the updated sample: the Goyal-Welch predictor workbook
+is the "All data up to 2025" file posted on Amit Goyal's website (downloaded
+2026-08; monthly rows complete through 2024-12), and the CRSP value-weighted
+index comes from WRDS (CIZ format) pulled through `END_DATE=2024-12-31`, so
+the updated estimation sample ends 2024-12. Goyal's posted file updates
+roughly annually; re-run `doit forget pull:goyal_welch && doit` to refresh
+it and raise `END_DATE`/`SAMPLE_END` when a newer vintage appears.
+
+Test gating: the quantitative anchor tests (`src/test_figure7.py`,
+`test_figure8.py`, `test_figure11.py`) always read the bare paper-period
+artifacts, so they validate the paper's numbers regardless of the configured
+`SAMPLE_END` and skip only when those artifacts are missing. When
+`SAMPLE_END` is set away from the paper period, `src/test_updated_sample.py`
+adds sanity checks on the suffixed artifact set (existence, finite values,
+full grid structure); it skips under the paper-period config.
+
+
 ### Other commands
 
 #### Unit Tests and Doc Tests

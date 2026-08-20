@@ -28,13 +28,16 @@ import pandas as pd
 from matplotlib.ticker import MultipleLocator, PercentFormatter
 
 from figure_style import BORDER, INK_SECONDARY, PAPER_LINE_COLORS, style_axis
+from sample_period import SAMPLE_SUFFIX
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
-VI_PATH = DATA_DIR / f"variable_importance_T{TRAIN_WINDOW}.parquet"
+# SAMPLE_SUFFIX is empty for the paper period; an updated-sample run reads
+# and writes its own suffixed artifact set (see sample_period).
+VI_PATH = DATA_DIR / f"variable_importance_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}.parquet"
 FULL_MODEL_LABEL = "none"
 
 # The paper's bar (left, R^2) and line (right, Sharpe) colors are the first
@@ -128,13 +131,14 @@ def plot_figure11(vi, output_stem):
 def main():
     vi = load_vi_data()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    vi.to_parquet(OUTPUT_DIR / "figure11_data.parquet")
-    plot_figure11(vi, OUTPUT_DIR / "figure11")
+    vi.to_parquet(OUTPUT_DIR / f"figure11_data{SAMPLE_SUFFIX}.parquet")
+    plot_figure11(vi, OUTPUT_DIR / f"figure11{SAMPLE_SUFFIX}")
     top3 = ", ".join(
         f"{row.variable}={row.vi_r2:.4f}" for row in vi.head(3).itertuples()
     )
     print(
-        f"[figure11] wrote figure11.png/.pdf and figure11_data.parquet "
+        f"[figure11] wrote figure11{SAMPLE_SUFFIX}.png/.pdf and "
+        f"figure11_data{SAMPLE_SUFFIX}.parquet "
         f"({len(vi)} variables, {vi['n_seeds'].iloc[0]} seeds); top-3 R2 VI: {top3}"
     )
 
