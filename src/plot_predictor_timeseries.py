@@ -16,19 +16,17 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from sample_period import SAMPLE_SUFFIX
+from figure_style import HAIRLINE, INK_MUTED, INK_SECONDARY
+from sample_period import SAMPLE_SUFFIX, trim_to_sample
 from settings import config
 from standardize_kmz import load_standardized_dataset
-from table_predictor_summary import DISPLAY_NAMES, SERIES_COLUMNS, trim_to_sample
+from table_predictor_summary import DISPLAY_NAMES, SERIES_COLUMNS
 
 DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
 
 # Single-hue chart: identity lives in the panel titles, not in color.
 SERIES_COLOR = "#2a78d6"
-INK_SECONDARY = "#52514e"
-INK_MUTED = "#898781"
-HAIRLINE = "#e1e0d9"
 BASELINE = "#c3c2b7"
 
 

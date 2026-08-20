@@ -42,8 +42,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from settings import config
 from clean_goyal_welch import PREDICTOR_COLUMNS, load_kmz_dataset
+from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 

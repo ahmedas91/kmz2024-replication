@@ -37,7 +37,7 @@ from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
-VI_PATH = DATA_DIR / f"variable_importance_T{TRAIN_WINDOW}.parquet"
+VI_PATH = DATA_DIR / "variable_importance_T12.parquet"  # rankings are T=12-specific
 
 requires_data = pytest.mark.skipif(
     not VI_PATH.exists(),

@@ -30,8 +30,6 @@ from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 
-BOND_TARGET_COLUMNS = ["ltr_excess", "corpr_excess"]
-
 
 def build_bond_returns(data_dir=DATA_DIR):
     """The tidy bond excess-return frame: date, ltr_excess, corpr_excess.

@@ -26,3 +26,17 @@ from settings import config
 PAPER_SAMPLE_END = "2020-12"
 SAMPLE_END = config("SAMPLE_END", default=PAPER_SAMPLE_END, cast=str)
 SAMPLE_SUFFIX = "" if SAMPLE_END == PAPER_SAMPLE_END else f"_{SAMPLE_END}"
+
+
+def trim_to_sample(df, sample_end=None):
+    """Rows of ``df`` (with a ``date`` column) up to and including the last
+    month of the estimation sample (default: the configured SAMPLE_END).
+
+    The one shared implementation of the sample trim every estimation driver
+    and summary script applies; pandas is imported locally so this module
+    stays import-light for dodo.py.
+    """
+    import pandas as pd
+
+    cutoff = pd.Timestamp(sample_end or SAMPLE_END) + pd.offsets.MonthEnd(0)
+    return df.loc[df["date"] <= cutoff].reset_index(drop=True)

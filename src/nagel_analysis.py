@@ -1,8 +1,8 @@
 """Run Nagel's (2025) critique tests against the replicated VoC market strategy.
 
 Loads the standardized market returns and the anchor forecast export
-(``forecasts_market{suffix}.parquet``, P = 12,000 ridgeless, written by
-``doit estimate`` with ``SAVE_FORECASTS=1``), then applies the reusable
+(``forecasts_market{suffix}.parquet``, P = 12,000 ridgeless, built by
+``doit export_forecasts``), then applies the reusable
 :mod:`voc.nagel` toolkit: builds the momentum benchmark, regresses the VoC
 forecast on the trailing returns (anatomy), and spans the VoC strategy by the
 benchmark. Writes tidy results to ``_data`` for the table/figure script. The
@@ -19,10 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
 import pandas as pd
 
-from sample_period import SAMPLE_END, SAMPLE_SUFFIX
+from sample_period import SAMPLE_SUFFIX, trim_to_sample
 from settings import config
 from standardize_kmz import load_standardized_dataset
-
 from voc.nagel import (
     benchmark_metrics,
     declining_weights,
@@ -34,10 +33,27 @@ from voc.nagel import (
 DATA_DIR = Path(config("DATA_DIR"))
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
-FORECASTS_PATH = DATA_DIR / f"forecasts_market{SAMPLE_SUFFIX}.parquet"
-METRICS_PATH = DATA_DIR / f"nagel_metrics{SAMPLE_SUFFIX}.parquet"
-ANATOMY_PATH = DATA_DIR / f"nagel_anatomy{SAMPLE_SUFFIX}.parquet"
-SPANNING_PATH = DATA_DIR / f"nagel_spanning{SAMPLE_SUFFIX}.parquet"
+
+def result_paths(data_dir=DATA_DIR):
+    """The four Nagel artifact paths under ``data_dir`` (input first).
+
+    One place for the names, imported by ``table_nagel`` and ``dodo.py``,
+    so the scripts and the build graph can never disagree.
+    """
+    data_dir = Path(data_dir)
+    return {
+        "forecasts": data_dir / f"forecasts_market{SAMPLE_SUFFIX}.parquet",
+        "metrics": data_dir / f"nagel_metrics{SAMPLE_SUFFIX}.parquet",
+        "anatomy": data_dir / f"nagel_anatomy{SAMPLE_SUFFIX}.parquet",
+        "spanning": data_dir / f"nagel_spanning{SAMPLE_SUFFIX}.parquet",
+    }
+
+
+_DEFAULT_PATHS = result_paths()
+FORECASTS_PATH = _DEFAULT_PATHS["forecasts"]
+METRICS_PATH = _DEFAULT_PATHS["metrics"]
+ANATOMY_PATH = _DEFAULT_PATHS["anatomy"]
+SPANNING_PATH = _DEFAULT_PATHS["spanning"]
 
 
 def load_anchor_forecasts(path):
@@ -55,14 +71,14 @@ def load_anchor_forecasts(path):
 
 
 def run(data_dir=DATA_DIR, train_window=TRAIN_WINDOW):
+    """Run all three critique tests; write and return (metrics, anatomy, spanning)."""
     T = train_window
-    dataset = load_standardized_dataset(data_dir=data_dir)
-    sample_end = pd.Timestamp(SAMPLE_END) + pd.offsets.MonthEnd(0)
-    dataset = dataset.loc[dataset["date"] <= sample_end].reset_index(drop=True)
+    paths = result_paths(data_dir)
+    dataset = trim_to_sample(load_standardized_dataset(data_dir=data_dir))
     returns = dataset["mkt_excess"].to_numpy(dtype=np.float64)
     ts = np.arange(T, returns.shape[0] - 1)  # the engine's OOS decision points
 
-    voc = load_anchor_forecasts(data_dir / f"forecasts_market{SAMPLE_SUFFIX}.parquet")
+    voc = load_anchor_forecasts(paths["forecasts"])
     if len(voc) != ts.shape[0]:
         raise ValueError(
             f"forecast export has {len(voc)} months but the engine OOS has "
@@ -80,8 +96,14 @@ def run(data_dir=DATA_DIR, train_window=TRAIN_WINDOW):
     # (a) same-metrics comparison of the two strategies.
     metrics = pd.DataFrame(
         [
-            {"strategy": "VoC (ridgeless, c=1000)", **benchmark_metrics(voc_forecast, voc_realized)},
-            {"strategy": "Momentum benchmark", **benchmark_metrics(bench["forecast"], bench["realized"])},
+            {
+                "strategy": "VoC (ridgeless, c=1000)",
+                **benchmark_metrics(voc_forecast, voc_realized),
+            },
+            {
+                "strategy": "Momentum benchmark",
+                **benchmark_metrics(bench["forecast"], bench["realized"]),
+            },
         ]
     )
 
@@ -101,13 +123,14 @@ def run(data_dir=DATA_DIR, train_window=TRAIN_WINDOW):
         [{**span, "anatomy_r2": anat["r2"], "anatomy_intercept": anat["intercept"]}]
     )
 
-    metrics.to_parquet(METRICS_PATH)
-    anatomy.to_parquet(ANATOMY_PATH)
-    spanning.to_parquet(SPANNING_PATH)
+    metrics.to_parquet(paths["metrics"])
+    anatomy.to_parquet(paths["anatomy"])
+    spanning.to_parquet(paths["spanning"])
     return metrics, anatomy, spanning
 
 
 def main():
+    """Run the analysis and print the headline comparison numbers."""
     metrics, _, spanning = run()
     voc = metrics.iloc[0]
     bench = metrics.iloc[1]
@@ -120,7 +143,9 @@ def main():
         f"[nagel] anatomy R^2 {s.anatomy_r2:.3f}; spanning alpha {s.alpha:.4f} "
         f"(t={s.alpha_tstat:.2f}), benchmark beta {s.beta_benchmark:.3f}"
     )
-    print(f"[nagel] wrote {METRICS_PATH.name}, {ANATOMY_PATH.name}, {SPANNING_PATH.name}")
+    print(
+        f"[nagel] wrote {METRICS_PATH.name}, {ANATOMY_PATH.name}, {SPANNING_PATH.name}"
+    )
 
 
 if __name__ == "__main__":

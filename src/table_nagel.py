@@ -8,23 +8,17 @@ Reads the tidy results from ``nagel_analysis`` (``_data/nagel_*.parquet``) and w
   visual test of Nagel's "recency-weighted momentum" claim.
 """
 
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from nagel_analysis import ANATOMY_PATH, METRICS_PATH, SPANNING_PATH
 from sample_period import SAMPLE_SUFFIX
 from settings import config
 
-DATA_DIR = Path(config("DATA_DIR"))
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
 
-METRICS_PATH = DATA_DIR / f"nagel_metrics{SAMPLE_SUFFIX}.parquet"
-ANATOMY_PATH = DATA_DIR / f"nagel_anatomy{SAMPLE_SUFFIX}.parquet"
-SPANNING_PATH = DATA_DIR / f"nagel_spanning{SAMPLE_SUFFIX}.parquet"
 TABLE_PATH = OUTPUT_DIR / f"nagel_comparison_table{SAMPLE_SUFFIX}.tex"
 FIGURE_STEM = OUTPUT_DIR / f"figure_nagel{SAMPLE_SUFFIX}"
 
@@ -45,7 +39,9 @@ def build_table(metrics, spanning):
             "r2": "OOS $R^2$",
         }
     )
-    body = display.to_latex(index=False, escape=False, float_format=lambda x: f"{x:.3f}")
+    body = display.to_latex(
+        index=False, escape=False, float_format=lambda x: f"{x:.3f}"
+    )
     s = spanning.iloc[0]
     note = (
         "\n\n\\smallskip\\noindent Spanning regression (VoC strategy on the momentum "
@@ -61,12 +57,19 @@ def plot_lag_weights(anatomy, output_stem):
     fig, ax = plt.subplots(figsize=(7.0, 4.0), facecolor="white")
     lag = anatomy["lag"]
     ax.bar(
-        lag, anatomy["voc_lag_weight"], color=SERIES_COLOR, alpha=0.75,
+        lag,
+        anatomy["voc_lag_weight"],
+        color=SERIES_COLOR,
+        alpha=0.75,
         label="VoC forecast (estimated)",
     )
     ax.plot(
-        lag, anatomy["benchmark_weight"], color=BENCH_COLOR, marker="o",
-        linewidth=1.6, label="Momentum benchmark (declining)",
+        lag,
+        anatomy["benchmark_weight"],
+        color=BENCH_COLOR,
+        marker="o",
+        linewidth=1.6,
+        label="Momentum benchmark (declining)",
     )
     ax.axhline(0, color="#888888", linewidth=0.7)
     ax.set_xlabel("Return lag (months)")
@@ -85,6 +88,7 @@ def plot_lag_weights(anatomy, output_stem):
 
 
 def main():
+    """Read the tidy Nagel results; write the LaTeX table and the figure."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     metrics = pd.read_parquet(METRICS_PATH)
     anatomy = pd.read_parquet(ANATOMY_PATH)

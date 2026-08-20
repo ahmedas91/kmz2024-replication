@@ -12,6 +12,7 @@ data parquets.
 
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MultipleLocator, StrMethodFormatter
 
@@ -127,3 +128,42 @@ def finish_broken_pair(ax_main, ax_tail, title, ylim, ytick_step=None, decimals=
 def z_line_label(z):
     """The paper's legend label for a ridge line."""
     return f"$\\log_{{10}}(z) = {round(float(np.log10(z)))}$"
+
+
+# The dashed dark line for the ridgeless (z -> 0 minimum-norm) limit, shared
+# by every figure that draws it.
+RIDGELESS_STYLE = {
+    "color": "#262523",
+    "linewidth": 1.5,
+    "linestyle": (0, (5, 2)),
+    "zorder": 4,
+}
+
+
+def add_lower_right_legend(fig, legend_axis, legend_tail):
+    """One boxed figure-level legend in the lower-right corner of the axis
+    pair (legend_axis, legend_tail), drawn at figure level so it may sit on
+    top of the axis break and sliver, as in the paper."""
+    handles, labels = legend_axis.get_legend_handles_labels()
+    anchor = (
+        legend_tail.get_position().x1 - 0.004,
+        legend_axis.get_position().y0 + 0.008,
+    )
+    fig.legend(
+        handles,
+        labels,
+        loc="lower right",
+        bbox_to_anchor=anchor,
+        fontsize=7,
+        edgecolor=BORDER,
+        facecolor="white",
+        framealpha=1.0,
+        fancybox=False,
+    )
+
+
+def save_png_pdf(fig, output_stem):
+    """Save ``output_stem``.png (300 dpi) and a .pdf twin, then close."""
+    fig.savefig(f"{output_stem}.png", dpi=300)
+    fig.savefig(f"{output_stem}.pdf")
+    plt.close(fig)

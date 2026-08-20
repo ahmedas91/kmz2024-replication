@@ -131,6 +131,42 @@ path = "_data/variable_importance_T12.parquet"
 docs_path = "docs_src/dataframes/variable_importance_T12.md"
 
 
+[dataframes.nagel_metrics]
+name = "Nagel critique: strategy metrics"
+description = "VoC (ridgeless, c = 1000, across-seed mean forecast) versus the recency-weighted momentum benchmark on identical metrics: OOS R2, mean return, volatility, Sharpe, alpha, IR, alpha t-stat."
+sources = ["forecasts_market (this project)", "kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["nagel", "critique", "statistics"]
+pull_method = "doit nagel (src/nagel_analysis.py driving voc/nagel.py)"
+path = "_data/nagel_metrics.parquet"
+docs_path = "docs_src/dataframes/nagel_metrics.md"
+
+
+[dataframes.nagel_anatomy]
+name = "Nagel critique: forecast anatomy"
+description = "Estimated lag weights of the VoC forecast on the trailing 12 standardized returns, next to the benchmark's linearly declining weights - the direct test of the recency-weighted-momentum claim."
+sources = ["forecasts_market (this project)", "kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["nagel", "critique", "anatomy"]
+pull_method = "doit nagel (src/nagel_analysis.py driving voc/nagel.py)"
+path = "_data/nagel_anatomy.parquet"
+docs_path = "docs_src/dataframes/nagel_anatomy.md"
+
+
+[dataframes.nagel_spanning]
+name = "Nagel critique: spanning regression"
+description = "The VoC strategy regressed on the momentum benchmark strategy and the static market: alpha, betas, and the anatomy regression's R2, in one tidy row."
+sources = ["forecasts_market (this project)", "kmz_dataset_standardized (this project)"]
+providers = ["Derived in this project"]
+provider_links = []
+tags = ["nagel", "critique", "spanning"]
+pull_method = "doit nagel (src/nagel_analysis.py driving voc/nagel.py)"
+path = "_data/nagel_spanning.parquet"
+docs_path = "docs_src/dataframes/nagel_spanning.md"
+
+
 [charts]
 
 
@@ -182,6 +218,16 @@ tags = ["figure", "international", "voc", "extension"]
 frequency = "monthly"
 path = "_output/figure_intl.png"
 docs_path = "docs_src/charts/figure_intl.md"
+
+
+[charts.figure_nagel]
+name = "Nagel critique: lag weights"
+description = "The VoC forecast's estimated lag weights on the trailing 12 standardized returns versus the momentum benchmark's linearly declining weights - the visual test of Nagel's recency-weighted-momentum claim."
+dataframe = "nagel_anatomy"
+tags = ["figure", "nagel", "critique"]
+frequency = "monthly"
+path = "_output/figure_nagel.png"
+docs_path = "docs_src/charts/figure_nagel.md"
 
 
 [charts.predictor_timeseries]

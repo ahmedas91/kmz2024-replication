@@ -22,14 +22,9 @@ Config (via ``.env`` / command line, so reruns need zero code edits):
                 updated-sample rerun) suffixes the output filenames with the
                 sample end, so both runs coexist. The standardized parquet
                 itself extends past the paper period.
-  SAVE_FORECASTS  "1"/"true" additionally exports the per-seed forecast,
-                realized-return, and strategy-return SERIES at the anchor
-                configuration (P = 12,000, z = 10^3 plus ridgeless, same
-                seeds) to ``_data/forecasts_market{suffix}.parquet`` — the
-                input the Nagel study (issue #17) needs. Deliberately anchor-
-                only: exporting the full grid would be seeds x 112 cells x
-                months, gigabytes of parquet. Default off; the export run
-                adds a minute or two.
+The per-seed anchor forecast export the Nagel study consumes is its own
+driver and doit task (``export_forecasts.py``; formerly a SAVE_FORECASTS
+switch here), so the build graph models the file.
 
 ``dodo.py`` imports the path and config constants from this module, so the
 build graph and the script can never disagree about filenames, and doit reruns
@@ -46,43 +41,29 @@ from pathlib import Path
 # (which puts src/, not the repo root, on sys.path). Proper packaging is issue #14.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sample_period import SAMPLE_END, SAMPLE_SUFFIX
+from sample_period import SAMPLE_SUFFIX, trim_to_sample
 from settings import config
 
 DATA_DIR = Path(config("DATA_DIR"))
 N_SEEDS = config("N_SEEDS", default=500, cast=int)
 N_JOBS = config("N_JOBS", default=-1, cast=int)
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
-SAVE_FORECASTS = str(
-    config("SAVE_FORECASTS", default="0", cast=str)
-).strip().lower() in (
-    "1",
-    "true",
-    "yes",
-    "y",
-)
 
 AVERAGED_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}.parquet"
 PER_SEED_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}{SAMPLE_SUFFIX}_per_seed.parquet"
-# The anchor configuration for the optional forecast export: the paper's
-# highest-complexity model at heavy shrinkage, plus its ridgeless limit.
-ANCHOR_P = 12_000
-ANCHOR_Z = 1_000.0
 
 
 def main():
+    """Run the market grid across seeds and cache the statistics parquets."""
     # Heavy imports live here so dodo.py can import the constants above without
     # paying for pandas and the engine at every doit parse.
-    import pandas as pd
 
     from standardize_kmz import load_standardized_dataset
     from voc.oos_engine import run_voc_study
 
-    dataset = load_standardized_dataset(data_dir=DATA_DIR)
-    sample_end = pd.Timestamp(SAMPLE_END) + pd.offsets.MonthEnd(0)
-    dataset = dataset.loc[dataset["date"] <= sample_end].reset_index(drop=True)
+    dataset = trim_to_sample(load_standardized_dataset(data_dir=DATA_DIR))
     if dataset.empty:
-        raise ValueError(f"SAMPLE_END={SAMPLE_END} leaves no rows in the sample")
+        raise ValueError("SAMPLE_END leaves no rows in the sample")
 
     # The market study as one configuration of the generic API.
     predictor_cols = [c for c in dataset.columns if c not in ("date", "mkt_excess")]
@@ -111,29 +92,6 @@ def main():
     averaged.to_parquet(AVERAGED_PATH)
     per_seed.to_parquet(PER_SEED_PATH)
     print(f"[estimate] wrote {AVERAGED_PATH.name} and {PER_SEED_PATH.name}")
-
-    if SAVE_FORECASTS:
-        study_name = f"market{SAMPLE_SUFFIX}"
-        print(f"[estimate] exporting anchor forecasts (study_name={study_name})")
-        start = time.perf_counter()
-        run_voc_study(
-            target,
-            predictors,
-            dates=dates,
-            T=TRAIN_WINDOW,
-            p_grid=(ANCHOR_P,),
-            z_grid=(ANCHOR_Z,),
-            include_ridgeless=True,
-            seeds=range(N_SEEDS),
-            n_jobs=N_JOBS,
-            save_forecasts=True,
-            study_name=study_name,
-            data_dir=DATA_DIR,
-        )
-        print(
-            f"[estimate] wrote forecasts_{study_name}.parquet in "
-            f"{time.perf_counter() - start:.1f}s"
-        )
 
 
 if __name__ == "__main__":

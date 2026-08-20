@@ -148,27 +148,8 @@ requires_updated_intl = pytest.mark.skipif(
 
 
 @requires_updated_intl
-def test_updated_intl_grid_structure():
-    """The updated-period intl cache mirrors the paper-period one: single
-    target, full cell grid, finite statistics, suffixed figure on disk."""
-    per_seed = pd.read_parquet(INTL_GRID_PATH)
-    assert set(per_seed["target"]) == {"intl_mkt_excess"}
-    assert per_seed["P"].nunique() == 14
-    assert per_seed["z"].nunique() == 8  # 7 ridge levels + ridgeless
-    assert np.isfinite(per_seed[["r2", "sharpe"]].to_numpy()).all()
+def test_updated_intl_outputs_exist():
+    """Suffixed intl artifacts exist; their STRUCTURE is covered by
+    test_intl_study.py, whose paths follow SAMPLE_SUFFIX and therefore test
+    the same parquet under this config (checkup: dedupe, not re-assert)."""
     assert (OUTPUT_DIR / f"figure_intl{SAMPLE_SUFFIX}.png").exists()
-
-
-@requires_updated_bonds
-def test_updated_bond_grid_structure():
-    """The updated-period bond cache mirrors the paper-period one: both
-    targets, the full cell grid, one shared seed list, finite statistics,
-    and the suffixed figure on disk."""
-    per_seed = pd.read_parquet(BONDS_GRID_PATH)
-    assert set(per_seed["target"]) == {"ltr_excess", "corpr_excess"}
-    for _, rows in per_seed.groupby("target"):
-        assert rows["P"].nunique() == 14
-        assert rows["z"].nunique() == 8  # 7 ridge levels + ridgeless
-        assert np.isfinite(rows[["r2", "sharpe"]].to_numpy()).all()
-    assert per_seed.groupby("target")["seed"].agg(frozenset).nunique() == 1
-    assert (OUTPUT_DIR / f"figure_bonds{SAMPLE_SUFFIX}.png").exists()

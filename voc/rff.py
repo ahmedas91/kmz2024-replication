@@ -154,6 +154,13 @@ def standardize_by_training_window(
     if uncentered:
         scale = np.sqrt(np.mean(S_train**2, axis=0))
     else:
+        if S_train.shape[0] < 2:
+            # ddof=1 SD is undefined on one row; the degenerate-column guard
+            # below would then silently disable standardization wholesale.
+            raise ValueError(
+                "centered standardization needs at least 2 training rows "
+                f"(got {S_train.shape[0]}); use T >= 2 or uncentered=True"
+            )
         scale = S_train.std(axis=0, ddof=1)
     # Degenerate columns (a near-constant feature, or a NaN/inf scale) are left
     # unscaled rather than amplified toward infinity (sklearn's convention).

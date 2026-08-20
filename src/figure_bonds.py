@@ -14,9 +14,7 @@ configured sample period like every estimation artifact.
 
 from pathlib import Path
 
-import pandas as pd
-
-from figure_voc_study import plot_voc_panels
+from figure_voc_study import load_panel_data, plot_voc_panels
 from run_bonds_study import BONDS_AVERAGED_PATH, TARGET_LABELS
 from sample_period import SAMPLE_SUFFIX
 from settings import config
@@ -24,15 +22,9 @@ from settings import config
 OUTPUT_DIR = Path(config("OUTPUT_DIR"))
 
 
-def load_panel_data(grid_path=BONDS_AVERAGED_PATH):
-    """All cached rows (ridgeless included), sorted within target."""
-    grid = pd.read_parquet(grid_path)
-    grid = grid.sort_values(["target", "z", "c"]).reset_index(drop=True)
-    return grid[["target", "P", "z", "c", "r2", "sharpe"]]
-
-
 def main():
-    panel_data = load_panel_data()
+    """Render the bonds panels and write the plotted data parquet."""
+    panel_data = load_panel_data(BONDS_AVERAGED_PATH)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     panel_data.to_parquet(OUTPUT_DIR / f"figure_bonds_data{SAMPLE_SUFFIX}.parquet")
     plot_voc_panels(

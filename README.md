@@ -22,6 +22,10 @@ conda env create -f environment.yml
 conda activate kmz2024_replication
 ```
 
+Then copy `.env.example` to `.env` and set `WRDS_USERNAME` (a WRDS account
+is required for the CRSP pull; the Goyal-Welch and Ken French pulls only
+need internet). The other `.env` settings have sensible defaults.
+
 Finally, run the project tasks:
 ```bash
 doit
@@ -79,12 +83,10 @@ You can run the unit test, including doctests, with the following command:
 pytest --doctest-modules
 ```
 
-You can build the documentation with:
+You can build the documentation (the chartbook site under `docs/`) with:
 ```
-rm ./src/.pytest_cache/README.md
-jupyter-book build -W ./
+doit build_chartbook_site
 ```
-Use `del` instead of rm on Windows
 
 
 #### Setting Environment Variables
@@ -137,8 +139,8 @@ ruff format . && ruff check --select I --fix . && ruff check --fix .
 
  - I'm using the `doit` Python module as a task runner. It works like `make` and
    the associated `Makefile`s. To rerun the code, install `doit`
-   (https://pydoit.org/) and execute the command `doit` from the `src`
-   directory. Note that doit is very flexible and can be used to run code
+   (https://pydoit.org/) and execute the command `doit` from the repository
+   root (where `dodo.py` lives). Note that doit is very flexible and can be used to run code
    commands from the command prompt, thus making it suitable for projects that
    use scripts written in multiple different programming languages.
 
@@ -176,9 +178,9 @@ loaded by importing `config`.
  - **`pull_` vs `load_`**: Files or functions that pull data from an external
  data source are prepended with "pull_", as in "pull_fred.py". Functions that
  load data that has been cached in the "_data" folder are prepended with "load_".
- For example, inside of the `pull_CRSP_Compustat.py` file there is both a
- `pull_compustat` function and a `load_compustat` function. The first pulls from
- the web, whereas the other loads cached data from the "_data" directory.
+ For example, inside of the `pull_goyal_welch.py` file there is both a
+ `pull_goyal_welch` function and a `load_goyal_welch` function. The first pulls
+ from the web, whereas the other loads cached data from the "_data" directory.
 
 
 ### Dependencies and Virtual Environments
@@ -199,9 +201,10 @@ To activate the environment:
 conda activate kmz2024_replication
 ```
 
-To export the current environment:
+To export a snapshot of the current environment (to a SEPARATE file, so the
+curated `environment.yml` is not overwritten):
 ```bash
-conda env export > environment.yml
+conda env export > environment_snapshot.yml
 ```
 
 **Tip:** Consider using `mamba` instead of `conda` for faster package resolution. Install via [miniforge](https://github.com/conda-forge/miniforge).

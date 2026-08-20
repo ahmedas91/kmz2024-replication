@@ -91,3 +91,21 @@ def test_benchmark_metrics_matches_performance_metrics():
     for key in ("r2", "sharpe", "alpha", "information_ratio", "alpha_tstat"):
         assert key in m and np.isfinite(m[key])
     assert np.isclose(m["sharpe"], sharpe_ratio(forecast * realized))
+
+
+def test_benchmark_metrics_matches_compute_metrics():
+    """benchmark_metrics must equal compute_metrics on every shared key, so
+    the Nagel comparison table scores both strategies with the SAME metric
+    definitions (checkup finding: the claimed parity was never asserted)."""
+    import numpy as np
+
+    from voc.nagel import benchmark_metrics
+    from voc.performance_metrics import compute_metrics
+
+    rng = np.random.default_rng(11)
+    forecast = rng.standard_normal(240)
+    realized = rng.standard_normal(240)
+    bench = benchmark_metrics(forecast, realized)
+    full = compute_metrics(forecast, realized, np.ones(240))
+    for key, value in bench.items():
+        assert np.isclose(value, full[key]), key

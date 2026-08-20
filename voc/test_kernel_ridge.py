@@ -41,7 +41,9 @@ def test_matches_sklearn_no_intercept():
     S = rng.standard_normal((T, P))
     R = rng.standard_normal(T)
     model = linear_model.Ridge(alpha=z * T, fit_intercept=False).fit(S, R)
-    np.testing.assert_allclose(ridge_dual(S, R, z)[0], model.coef_, rtol=1e-8, atol=1e-10)
+    np.testing.assert_allclose(
+        ridge_dual(S, R, z)[0], model.coef_, rtol=1e-8, atol=1e-10
+    )
 
 
 def test_ridgeless_is_min_norm_least_squares():
@@ -49,7 +51,9 @@ def test_ridgeless_is_min_norm_least_squares():
     rng = np.random.default_rng(2)
     S = rng.standard_normal((12, 40))
     R = rng.standard_normal(12)
-    np.testing.assert_allclose(ridgeless(S, R), np.linalg.pinv(S) @ R, rtol=1e-8, atol=1e-10)
+    np.testing.assert_allclose(
+        ridgeless(S, R), np.linalg.pinv(S) @ R, rtol=1e-8, atol=1e-10
+    )
 
 
 def test_tiny_z_converges_to_ridgeless_p_gt_t():
@@ -81,7 +85,9 @@ def test_multi_z_matches_individual_solves():
     stacked = ridge_dual(S, R, zs)
     assert stacked.shape == (len(zs), 60)
     for i, z in enumerate(zs):
-        np.testing.assert_allclose(stacked[i], ridge_dual(S, R, z)[0], rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(
+            stacked[i], ridge_dual(S, R, z)[0], rtol=1e-10, atol=1e-12
+        )
 
 
 def test_return_is_always_two_dimensional():

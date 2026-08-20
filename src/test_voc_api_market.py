@@ -33,12 +33,13 @@ from settings import config
 DATA_DIR = Path(config("DATA_DIR"))
 TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 STD_PATH = DATA_DIR / "kmz_dataset_standardized.parquet"
+TIDY_PATH = DATA_DIR / "kmz_dataset.parquet"
 # The regression target is always the PAPER-period cache (bare name).
 PER_SEED_PATH = DATA_DIR / f"oos_grid_T{TRAIN_WINDOW}_per_seed.parquet"
 
-requires_std_data = pytest.mark.skipif(
-    not STD_PATH.exists(),
-    reason=f"{STD_PATH.name} not found; run `doit standardize` first",
+requires_tidy_data = pytest.mark.skipif(
+    not TIDY_PATH.exists(),
+    reason=f"{TIDY_PATH.name} not found; run `doit tidy` first",
 )
 requires_cache = pytest.mark.skipif(
     not (STD_PATH.exists() and PER_SEED_PATH.exists()),
@@ -86,7 +87,7 @@ def test_api_reproduces_cached_market_stats():
     pd.testing.assert_frame_equal(fresh, cached, atol=1e-12, rtol=0.0)
 
 
-@requires_std_data
+@requires_tidy_data
 def test_preprocessing_matches_standardize_kmz():
     """voc.preprocessing reproduces standardize_kmz's conventions bit for bit
     on the real tidy dataset: trailing uncentered vol for the return,
@@ -112,3 +113,32 @@ def test_preprocessing_matches_standardize_kmz():
             rtol=0.0,
             equal_nan=True,
         )
+
+
+def test_preprocessing_matches_standardize_kmz_synthetic():
+    """Data-free version of the no-drift guard, so it survives a fresh clone:
+    the package standardization steps equal standardize_kmz's on a synthetic
+    series with leading NaNs (the ntis pattern)."""
+    import pandas as pd
+
+    from standardize_kmz import expanding_vol, trailing_uncentered_vol
+    from voc import preprocessing
+
+    rng = np.random.default_rng(7)
+    series = pd.Series(rng.standard_normal(200))
+    series.iloc[:11] = np.nan  # leading NaNs delay the start, as for ntis
+    np.testing.assert_allclose(
+        preprocessing.expanding_vol(series.to_numpy(), min_periods=36),
+        expanding_vol(series, min_periods=36).to_numpy(),
+        atol=0.0,
+        rtol=0.0,
+        equal_nan=True,
+    )
+    returns = pd.Series(rng.standard_normal(200))
+    np.testing.assert_allclose(
+        preprocessing.trailing_uncentered_vol(returns.to_numpy(), window=12),
+        trailing_uncentered_vol(returns, window=12).to_numpy(),
+        atol=0.0,
+        rtol=0.0,
+        equal_nan=True,
+    )
