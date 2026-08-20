@@ -16,7 +16,7 @@ pip install kmz-voc
 ## Quick start
 
 `run_voc_study` runs a virtue-of-complexity study on **any** `(target, predictor
-set)` pair — the market study is one configuration, and other asset classes or
+set)` pair: the market study is one configuration, and other asset classes or
 experiments are others. Inputs are expected already volatility-standardized;
 `voc.standardize_inputs` provides the strictly backward-looking standardization.
 
@@ -46,12 +46,12 @@ forecast scale while trading profits load on forecast direction.
 
 ## What's inside
 
-- `voc.rff` — the random Fourier feature map (paper eq. 20), with nested draws.
-- `voc.kernel_ridge` — dual-form (T × T) ridge and its ridgeless limit; no intercept.
-- `voc.oos_engine` — the recursive out-of-sample loop and `run_voc_study`.
-- `voc.performance_metrics` — OOS R², Sharpe, alpha / IR / t-stat.
-- `voc.preprocessing` — volatility standardization steps for new studies.
-- `voc.nagel` — tools to run Nagel's (2025) momentum critique on a study.
+- `voc.rff`: the random Fourier feature map (paper eq. 20), with nested draws.
+- `voc.kernel_ridge`: dual-form (T × T) ridge and its ridgeless limit; no intercept.
+- `voc.oos_engine`: the recursive out-of-sample loop and `run_voc_study`.
+- `voc.performance_metrics`: OOS R², Sharpe, alpha / IR / t-stat.
+- `voc.preprocessing`: volatility standardization steps for new studies.
+- `voc.nagel`: tools to run Nagel's (2025) momentum critique on a study.
 
 ## Reference
 
@@ -60,4 +60,4 @@ Prediction.* The Journal of Finance.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

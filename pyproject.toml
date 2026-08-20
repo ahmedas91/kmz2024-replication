@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kmz-voc"
-version = "0.1.0"
+version = "0.1.1"
 description = "A reusable Virtue-of-Complexity return-prediction engine (Kelly, Malamud & Zhou 2024)"
 readme = "README_voc.md"
 requires-python = ">=3.10"
@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [
     { name = "Jeffrey Key" },
-    { name = "Ahmad Mohammad" },
+    { name = "Ahmed Alahmadi" },
 ]
 keywords = [
     "finance",
