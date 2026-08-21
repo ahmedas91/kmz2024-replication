@@ -1,14 +1,15 @@
-"""Run Nagel's (2025) critique tests against the replicated VoC market strategy.
+"""Supplemental Nagel diagnostics in the existing KMZ-standardized workflow.
 
-Loads the standardized market returns and the anchor forecast export
-(``forecasts_market{suffix}.parquet``, P = 12,000 ridgeless, built by
-``doit export_forecasts``), then applies the reusable
-:mod:`voc.nagel` toolkit: builds the momentum benchmark, regresses the VoC
-forecast on the trailing returns (anatomy), and spans the VoC strategy by the
-benchmark. Writes tidy results to ``_data`` for the table/figure script. The
-market study is one caller of the toolkit; an asset-class study would be another.
+This driver preserves the project's historical ``nagel_metrics``, ``anatomy``,
+and ``spanning`` artifacts while correcting two fidelity problems: the simple
+benchmark now includes Nagel's inverse predictor-variance timing, and nonlinear
+performance statistics are computed per RFF draw before they are averaged.
 
-Findings are reported as found, whichever side they favor.
+These artifacts intentionally retain the KMZ-standardized dependent return so
+they remain comparable to Figures 7--8.  The source-faithful raw-return MA(2),
+wild-bootstrap, and matched-twin experiments live in ``nagel_experiments.py``.
+The anatomy is explicitly a projection diagnostic, not Nagel's interpolation
+weight vector.
 """
 
 import sys
@@ -26,8 +27,8 @@ from voc.nagel import (
     benchmark_metrics,
     declining_weights,
     forecast_anatomy,
-    momentum_benchmark,
     spanning_regression,
+    volatility_timed_momentum,
 )
 
 DATA_DIR = Path(config("DATA_DIR"))
@@ -35,11 +36,7 @@ TRAIN_WINDOW = config("TRAIN_WINDOW", default=12, cast=int)
 
 
 def result_paths(data_dir=DATA_DIR):
-    """The four Nagel artifact paths under ``data_dir`` (input first).
-
-    One place for the names, imported by ``table_nagel`` and ``dodo.py``,
-    so the scripts and the build graph can never disagree.
-    """
+    """Paths for the forecast input and three supplemental diagnostics."""
     data_dir = Path(data_dir)
     return {
         "forecasts": data_dir / f"forecasts_market{SAMPLE_SUFFIX}.parquet",
@@ -56,95 +53,137 @@ ANATOMY_PATH = _DEFAULT_PATHS["anatomy"]
 SPANNING_PATH = _DEFAULT_PATHS["spanning"]
 
 
-def load_anchor_forecasts(path):
-    """Across-seed mean VoC forecast/realized/strategy at the ridgeless anchor,
-    one row per month, ordered by date."""
+def load_anchor_forecasts_by_seed(path):
+    """Load one ordered ridgeless-anchor forecast path per RFF seed."""
     forecasts = pd.read_parquet(path)
-    ridgeless = forecasts.loc[forecasts["z"] == 0.0]
+    ridgeless = forecasts.loc[forecasts["z"] == 0.0].copy()
     if ridgeless.empty:
         raise ValueError(f"no ridgeless (z=0) rows in {Path(path).name}")
+    if "P" in ridgeless:
+        ridgeless = ridgeless.loc[ridgeless["P"] == ridgeless["P"].max()]
+    duplicated = ridgeless.duplicated(["seed", "obs"])
+    if duplicated.any():
+        raise ValueError("anchor export has duplicate (seed, obs) rows")
+    return ridgeless.sort_values(["seed", "obs"]).reset_index(drop=True)
+
+
+def load_anchor_forecasts(path):
+    """Backward-compatible across-seed ensemble forecast, one row per month."""
+    forecasts = load_anchor_forecasts_by_seed(path)
     return (
-        ridgeless.groupby("obs", sort=True)[["forecast", "realized", "strategy"]]
+        forecasts.groupby("obs", sort=True)[["forecast", "realized", "strategy"]]
         .mean()
         .reset_index()
     )
 
 
+def _mean_dicts(rows):
+    """Average numeric dictionaries without tying aggregation to row order."""
+    frame = pd.DataFrame(rows)
+    return frame.mean(numeric_only=True).to_dict()
+
+
 def run(data_dir=DATA_DIR, train_window=TRAIN_WINDOW):
-    """Run all three critique tests; write and return (metrics, anatomy, spanning)."""
-    T = train_window
+    """Build standardized-target diagnostics and write their three parquets."""
     paths = result_paths(data_dir)
     dataset = trim_to_sample(load_standardized_dataset(data_dir=data_dir))
     returns = dataset["mkt_excess"].to_numpy(dtype=np.float64)
-    ts = np.arange(T, returns.shape[0] - 1)  # the engine's OOS decision points
+    predictor_columns = [
+        column for column in dataset if column not in ("date", "mkt_excess")
+    ]
+    predictors = dataset[predictor_columns].to_numpy(dtype=np.float64)
+    decision_points = np.arange(train_window, returns.size - 1)
 
-    voc = load_anchor_forecasts(paths["forecasts"])
-    if len(voc) != ts.shape[0]:
-        raise ValueError(
-            f"forecast export has {len(voc)} months but the engine OOS has "
-            f"{ts.shape[0]}; sample mismatch"
-        )
-    voc_forecast = voc["forecast"].to_numpy()
-    voc_realized = voc["realized"].to_numpy()
-    voc_strategy = voc["strategy"].to_numpy()
+    by_seed = load_anchor_forecasts_by_seed(paths["forecasts"])
+    seed_groups = list(by_seed.groupby("seed", sort=True))
+    if not seed_groups:
+        raise ValueError("anchor forecast export contains no seeds")
+    expected_rows = decision_points.size
+    if any(len(group) != expected_rows for _, group in seed_groups):
+        raise ValueError("one or more seed forecast paths do not match the OOS sample")
 
-    bench = momentum_benchmark(returns, T=T)
+    benchmark = volatility_timed_momentum(returns, predictors, T=train_window)
+    first_realized = seed_groups[0][1]["realized"].to_numpy(dtype=np.float64)
     np.testing.assert_allclose(
-        bench["realized"], voc_realized, err_msg="benchmark and VoC OOS months differ"
+        benchmark["realized"],
+        first_realized,
+        err_msg="benchmark and VoC OOS months differ",
     )
 
-    # (a) same-metrics comparison of the two strategies.
+    rff_metric_rows = []
+    span_rows = []
+    for _, group in seed_groups:
+        forecast = group["forecast"].to_numpy(dtype=np.float64)
+        realized = group["realized"].to_numpy(dtype=np.float64)
+        strategy = forecast * realized
+        rff_metric_rows.append(benchmark_metrics(forecast, realized))
+        span_rows.append(spanning_regression(strategy, benchmark["strategy"], realized))
+
     metrics = pd.DataFrame(
         [
             {
                 "strategy": "VoC (ridgeless, c=1000)",
-                **benchmark_metrics(voc_forecast, voc_realized),
+                **_mean_dicts(rff_metric_rows),
+                "n_seeds": len(seed_groups),
+                "target_scale": "KMZ standardized",
             },
             {
-                "strategy": "Momentum benchmark",
-                **benchmark_metrics(bench["forecast"], bench["realized"]),
+                "strategy": "Volatility-timed momentum",
+                **benchmark_metrics(benchmark["forecast"], benchmark["realized"]),
+                "n_seeds": 1,
+                "target_scale": "KMZ standardized",
             },
         ]
     )
 
-    # (b) forecast anatomy: VoC forecast on the trailing T standardized returns.
-    anat = forecast_anatomy(voc_forecast, returns, ts, T=T)
+    ensemble = load_anchor_forecasts(paths["forecasts"])
+    anatomy_fit = forecast_anatomy(
+        ensemble["forecast"].to_numpy(dtype=np.float64),
+        returns,
+        decision_points,
+        T=train_window,
+    )
     anatomy = pd.DataFrame(
         {
-            "lag": np.arange(1, T + 1),
-            "voc_lag_weight": anat["lag_weights"],
-            "benchmark_weight": declining_weights(T),
+            "lag": np.arange(1, train_window + 1),
+            "voc_projection_weight": anatomy_fit["lag_weights"],
+            # Backward-compatible alias consumed by older notebooks/tests.
+            "voc_lag_weight": anatomy_fit["lag_weights"],
+            "benchmark_weight": declining_weights(train_window),
         }
     )
 
-    # (c) spanning: VoC strategy on the benchmark strategy + the static market.
-    span = spanning_regression(voc_strategy, bench["strategy"], voc_realized)
     spanning = pd.DataFrame(
-        [{**span, "anatomy_r2": anat["r2"], "anatomy_intercept": anat["intercept"]}]
+        [
+            {
+                **_mean_dicts(span_rows),
+                "n_seeds": len(seed_groups),
+                "aggregation": "mean of per-seed statistics",
+                "target_scale": "KMZ standardized",
+                "anatomy_r2": anatomy_fit["r2"],
+                "anatomy_intercept": anatomy_fit["intercept"],
+            }
+        ]
     )
 
-    metrics.to_parquet(paths["metrics"])
-    anatomy.to_parquet(paths["anatomy"])
-    spanning.to_parquet(paths["spanning"])
+    metrics.to_parquet(paths["metrics"], index=False)
+    anatomy.to_parquet(paths["anatomy"], index=False)
+    spanning.to_parquet(paths["spanning"], index=False)
     return metrics, anatomy, spanning
 
 
 def main():
-    """Run the analysis and print the headline comparison numbers."""
     metrics, _, spanning = run()
-    voc = metrics.iloc[0]
-    bench = metrics.iloc[1]
-    s = spanning.iloc[0]
+    voc = metrics.loc[metrics["strategy"].str.startswith("VoC")].iloc[0]
+    benchmark = metrics.loc[metrics["strategy"] == "Volatility-timed momentum"].iloc[0]
+    span = spanning.iloc[0]
     print(
-        f"[nagel] VoC Sharpe {voc.sharpe:.3f} / alpha_t {voc.alpha_tstat:.2f}  vs  "
-        f"benchmark Sharpe {bench.sharpe:.3f} / alpha_t {bench.alpha_tstat:.2f}"
+        f"[nagel:diagnostic] VoC Sharpe {voc.sharpe:.3f} vs "
+        f"vol-momentum {benchmark.sharpe:.3f}; spanning t={span.alpha_tstat:.2f}"
     )
     print(
-        f"[nagel] anatomy R^2 {s.anatomy_r2:.3f}; spanning alpha {s.alpha:.4f} "
-        f"(t={s.alpha_tstat:.2f}), benchmark beta {s.beta_benchmark:.3f}"
-    )
-    print(
-        f"[nagel] wrote {METRICS_PATH.name}, {ANATOMY_PATH.name}, {SPANNING_PATH.name}"
+        "[nagel:diagnostic] standardized target; mean of per-seed statistics; "
+        f"wrote {METRICS_PATH.name}, {ANATOMY_PATH.name}, {SPANNING_PATH.name}"
     )
 
 

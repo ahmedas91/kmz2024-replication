@@ -153,3 +153,37 @@ def test_updated_intl_outputs_exist():
     test_intl_study.py, whose paths follow SAMPLE_SUFFIX and therefore test
     the same parquet under this config (checkup: dedupe, not re-assert)."""
     assert (OUTPUT_DIR / f"figure_intl{SAMPLE_SUFFIX}.png").exists()
+
+
+UPDATED_NAGEL_PATHS = [
+    DATA_DIR / f"nagel_counterfactuals{SAMPLE_SUFFIX}.parquet",
+    DATA_DIR / f"nagel_counterfactual_spanning{SAMPLE_SUFFIX}.parquet",
+    DATA_DIR / f"nagel_twin_recovery{SAMPLE_SUFFIX}.parquet",
+    DATA_DIR / f"nagel_twin_spanning{SAMPLE_SUFFIX}.parquet",
+    DATA_DIR / f"nagel_twin_paths{SAMPLE_SUFFIX}.parquet",
+]
+
+requires_updated_nagel = pytest.mark.skipif(
+    is_paper_period or not all(path.exists() for path in UPDATED_NAGEL_PATHS),
+    reason=(
+        "updated-period Nagel checks run only when SAMPLE_END is non-paper "
+        "and `doit nagel` has built the complete suffixed experiment family"
+    ),
+)
+
+
+@requires_updated_nagel
+def test_updated_nagel_experiment_family_is_complete():
+    counterfactuals, _, recovery, spanning, paths = (
+        pd.read_parquet(path) for path in UPDATED_NAGEL_PATHS
+    )
+    assert set(counterfactuals["experiment"]) == {
+        "historical",
+        "ma2_reversal",
+        "wild_bootstrap",
+    }
+    assert set(recovery["predictor_set"]) == {"x14_shared", "x15_world_lag"}
+    assert set(spanning["market"]) == {"plus", "minus"}
+    assert set(paths["strength"]) == {"easy", "realistic"}
+    assert (OUTPUT_DIR / f"nagel_experiments_table{SAMPLE_SUFFIX}.tex").exists()
+    assert (OUTPUT_DIR / f"figure_nagel_twins{SAMPLE_SUFFIX}.png").exists()

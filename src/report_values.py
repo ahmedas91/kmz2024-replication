@@ -78,12 +78,56 @@ def build_macros(data_dir=DATA_DIR):
 
     nagel_metrics = pd.read_parquet(data_dir / "nagel_metrics.parquet")
     nagel_span = pd.read_parquet(data_dir / "nagel_spanning.parquet")
-    voc_row = nagel_metrics.iloc[0]
-    bench_row = nagel_metrics.iloc[1]
+    voc_row = nagel_metrics.loc[
+        nagel_metrics["strategy"] == "VoC (ridgeless, c=1000)"
+    ].iloc[0]
+    bench_row = nagel_metrics.loc[
+        nagel_metrics["strategy"] == "Volatility-timed momentum"
+    ].iloc[0]
     macros["NagelVoCSharpe"] = f"{voc_row.sharpe:.2f}"
     macros["NagelBenchSharpe"] = f"{bench_row.sharpe:.2f}"
     macros["NagelSpanAlphaT"] = f"{nagel_span.iloc[0].alpha_tstat:.2f}"
     macros["NagelAnatomyRTwo"] = f"{nagel_span.iloc[0].anatomy_r2:.2f}"
+
+    counter = pd.read_parquet(data_dir / "nagel_counterfactuals.parquet")
+    counter_span = pd.read_parquet(data_dir / "nagel_counterfactual_spanning.parquet")
+    experiment_tags = {
+        "historical": "Hist",
+        "ma2_reversal": "MA",
+        "wild_bootstrap": "Wild",
+    }
+    for experiment, tag in experiment_tags.items():
+        rff = counter.loc[
+            (counter["experiment"] == experiment) & (counter["strategy"] == "RFF")
+        ].iloc[0]
+        span = counter_span.loc[counter_span["experiment"] == experiment].iloc[0]
+        macros[f"NagelRaw{tag}IR"] = f"{rff.information_ratio:.2f}"
+        macros[f"NagelRaw{tag}AlphaT"] = f"{rff.alpha_tstat:.2f}"
+        macros[f"NagelRaw{tag}SpanIR"] = f"{span.information_ratio:.2f}"
+        macros[f"NagelRaw{tag}SpanAlphaT"] = f"{span.alpha_tstat:.2f}"
+    macros["NagelExperimentSeeds"] = f"{int(counter.n_seeds.iloc[0]):,}"
+
+    recovery = pd.read_parquet(data_dir / "nagel_twin_recovery.parquet")
+    twin_span = pd.read_parquet(data_dir / "nagel_twin_spanning.parquet")
+    design_tags = {"x14_shared": "Clean", "x15_world_lag": "Lag"}
+    strength_tags = {"easy": "Easy", "realistic": "Real"}
+    for design, design_tag in design_tags.items():
+        for strength, strength_tag in strength_tags.items():
+            row = recovery.loc[
+                (recovery["predictor_set"] == design)
+                & (recovery["strength"] == strength)
+            ].iloc[0]
+            prefix = f"NagelTwin{strength_tag}{design_tag}"
+            macros[f"{prefix}Corr"] = f"{row.correlation:.2f}"
+            macros[f"{prefix}Slope"] = f"{row.slope:.2f}"
+            macros[f"{prefix}NRMSE"] = f"{row.nrmse:.2f}"
+            for market, market_tag in (("plus", "Plus"), ("minus", "Minus")):
+                span = twin_span.loc[
+                    (twin_span["predictor_set"] == design)
+                    & (twin_span["strength"] == strength)
+                    & (twin_span["market"] == market)
+                ].iloc[0]
+                macros[f"{prefix}{market_tag}AlphaT"] = f"{span.alpha_tstat:.2f}"
 
     return macros
 

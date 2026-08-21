@@ -1,17 +1,15 @@
-"""Tests for the Nagel critique driver layer (checkup follow-up to #17).
+"""Tests for the Nagel critique and matched-twin driver layer.
 
 The ``voc/nagel.py`` toolkit has its own synthetic tests; this module covers
 the driver glue that was merged without coverage: the anchor-forecast loader
 (ridgeless filter, across-seed averaging, the loud failure on a ridge-only
 export) and the structure of the cached result parquets (skip-gated until
-``doit export_forecasts nagel`` has run).
+``doit nagel_analysis`` has run).
 
-Note, documented rather than asserted: ``load_anchor_forecasts`` averages
-FORECASTS across seeds and computes one statistic set on the averaged path,
-which deviates from the engine's average-the-statistics convention (the
-averaged forecast is denoised, so its Sharpe exceeds the per-seed mean in
-the Figure 8 cache). Flagged in the checkup for a deliberate decision; the
-tests pin what the code does today.
+``load_anchor_forecasts`` supplies the across-seed ensemble path used only
+for the supplemental forecast-projection plot. Performance and spanning
+statistics use ``load_anchor_forecasts_by_seed`` and are completed per draw
+before averaging, matching the paper's convention.
 """
 
 from functools import lru_cache
@@ -25,11 +23,35 @@ from nagel_analysis import (
     METRICS_PATH,
     SPANNING_PATH,
     load_anchor_forecasts,
+    load_anchor_forecasts_by_seed,
 )
+from nagel_experiments import (
+    COUNTERFACTUAL_SPANNING_PATH,
+    COUNTERFACTUALS_PATH,
+    TWIN_PATHS_PATH,
+    TWIN_RECOVERY_PATH,
+    TWIN_SPANNING_PATH,
+    _twin_seed_rows,
+)
+from voc.nagel import make_twin_markets
 
 requires_results = pytest.mark.skipif(
     not (METRICS_PATH.exists() and ANATOMY_PATH.exists() and SPANNING_PATH.exists()),
-    reason="Nagel result parquets not found; run `doit export_forecasts nagel`",
+    reason="Nagel result parquets not found; run `doit nagel_analysis`",
+)
+
+requires_experiments = pytest.mark.skipif(
+    not all(
+        path.exists()
+        for path in (
+            COUNTERFACTUALS_PATH,
+            COUNTERFACTUAL_SPANNING_PATH,
+            TWIN_RECOVERY_PATH,
+            TWIN_SPANNING_PATH,
+            TWIN_PATHS_PATH,
+        )
+    ),
+    reason="Nagel experiment parquets not found; run `doit nagel_analysis`",
 )
 
 
@@ -64,6 +86,15 @@ def test_loader_filters_ridgeless_and_averages_seeds(tmp_path):
     np.testing.assert_allclose(voc["realized"].to_numpy(), [1.0, 2.0, 3.0])
 
 
+def test_per_seed_loader_preserves_draws(tmp_path):
+    forecasts = load_anchor_forecasts_by_seed(_fake_export(tmp_path))
+    assert list(forecasts["seed"].unique()) == [0, 1]
+    assert len(forecasts) == 6
+    np.testing.assert_allclose(
+        forecasts.loc[forecasts["seed"] == 1, "forecast"], [2.0, 4.0, 6.0]
+    )
+
+
 def test_loader_rejects_export_without_ridgeless(tmp_path):
     """A ridge-only export must fail loudly, not silently score z = 1000."""
     path = _fake_export(tmp_path, with_ridgeless=False)
@@ -87,12 +118,78 @@ def test_result_parquets_structure():
     metrics, anatomy, spanning = _results()
     assert list(metrics["strategy"]) == [
         "VoC (ridgeless, c=1000)",
-        "Momentum benchmark",
+        "Volatility-timed momentum",
     ]
-    stat_cols = [c for c in metrics.columns if c != "strategy"]
+    stat_cols = [c for c in metrics.select_dtypes(include=[np.number]).columns]
     assert np.isfinite(metrics[stat_cols].to_numpy()).all()
     assert list(anatomy["lag"]) == list(range(1, 13))
     assert np.isfinite(anatomy[["voc_lag_weight", "benchmark_weight"]].to_numpy()).all()
     assert len(spanning) == 1
     for column in ("alpha", "alpha_tstat", "beta_benchmark", "anatomy_r2"):
         assert np.isfinite(spanning[column].iloc[0])
+
+
+def test_twin_driver_exercises_both_predictor_designs_with_paired_seeds():
+    """A tiny engine run pins the 14/15-input orchestration and tidy keys."""
+    rng = np.random.default_rng(31)
+    names = ["dp", "ltr", "dfr"] + [f"x{i}" for i in range(11)]
+    predictors = rng.standard_normal((40, 14))
+    twins = {
+        "easy": make_twin_markets(
+            predictors,
+            names,
+            signal_r2=0.20,
+            shock_seed=32,
+            calibration_size=20,
+        ),
+        "realistic": make_twin_markets(
+            predictors,
+            names,
+            signal_r2=0.02,
+            shock_seed=32,
+            calibration_size=20,
+        ),
+    }
+    recovery, spanning, paths = _twin_seed_rows(0, predictors, twins, T=4, P=8)
+    assert {(row["predictor_set"], row["strength"]) for row in recovery} == {
+        (design, strength)
+        for design in ("x14_shared", "x15_world_lag")
+        for strength in ("easy", "realistic")
+    }
+    assert {
+        (row["predictor_set"], row["strength"], row["market"]) for row in spanning
+    } == {
+        (design, strength, market)
+        for design in ("x14_shared", "x15_world_lag")
+        for strength in ("easy", "realistic")
+        for market in ("plus", "minus")
+    }
+    assert len(paths) == 4
+    assert all(len(row["truth"]) == 35 for row in paths)
+
+
+@requires_experiments
+def test_experiment_cache_schemas_and_keys():
+    counterfactuals = pd.read_parquet(COUNTERFACTUALS_PATH)
+    counter_spanning = pd.read_parquet(COUNTERFACTUAL_SPANNING_PATH)
+    recovery = pd.read_parquet(TWIN_RECOVERY_PATH)
+    spanning = pd.read_parquet(TWIN_SPANNING_PATH)
+    paths = pd.read_parquet(TWIN_PATHS_PATH)
+
+    assert set(counterfactuals["experiment"]) == {
+        "historical",
+        "ma2_reversal",
+        "wild_bootstrap",
+    }
+    assert set(counterfactuals["strategy"]) == {
+        "RFF",
+        "Volatility-timed momentum",
+    }
+    assert set(counter_spanning["experiment"]) == set(counterfactuals["experiment"])
+    assert set(counterfactuals["target_scale"]) == {"raw decimal return"}
+    assert set(recovery["predictor_set"]) == {"x14_shared", "x15_world_lag"}
+    assert set(recovery["strength"]) == {"easy", "realistic"}
+    assert set(spanning["market"]) == {"plus", "minus"}
+    assert set(paths["predictor_set"]) == set(recovery["predictor_set"])
+    for frame in (counterfactuals, counter_spanning, recovery, spanning, paths):
+        assert np.isfinite(frame.select_dtypes(include=[np.number]).to_numpy()).all()

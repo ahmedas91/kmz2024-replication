@@ -12,6 +12,14 @@ data parquets.
 
 from __future__ import annotations
 
+import matplotlib
+
+# Headless backend: the figure scripts save PNG/PDF files and never open a GUI
+# window, so neither the test suite nor a display-less machine needs Tk. Without
+# this, matplotlib picks an interactive backend (e.g. TkAgg) and creating a
+# second figure in one process crashes with a Tk `tcl_findLibrary` error, which
+# made the renderer tests order-dependent.
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MultipleLocator, StrMethodFormatter
