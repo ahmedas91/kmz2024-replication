@@ -46,13 +46,16 @@ the LaTeX outputs.
 ```bash
 conda env create -f environment.yml
 conda activate kmz2024_replication
-cp .env.example .env   # set WRDS_USERNAME; other keys have defaults
-doit                   # full pipeline, paper period
+cp .env.example .env     # set WRDS_USERNAME; other keys have defaults
+doit                     # full pipeline, paper period
+SAMPLE_END=2024-12 doit  # updated sample; the report compiles on this run
 ```
 
 The first run pulls data (the CRSP pull needs the WRDS credentials; the
 other pulls only need internet) and takes roughly 20 minutes, dominated by
-the 500-seed estimation grid. Later runs are incremental.
+the 500-seed estimation grid. Later runs are incremental. The final report
+embeds both sample periods, so its compile skips itself with a notice until
+both commands have run once; everything else builds on the first command.
 
 ## Sample periods
 
@@ -69,8 +72,9 @@ SAMPLE_END=2024-12 doit  # updated sample (figure8_2024-12.png, ...)
 
 The pulls and tidy datasets are period-independent (full history, bounded
 by `START_DATE`/`END_DATE`) and are trimmed downstream, so switching
-periods never re-pulls. The report and the presentation deck embed both
-periods, so compile them after both runs exist.
+periods never re-pulls. The report embeds both periods, so its tasks skip
+themselves with a notice until both runs exist, then compile automatically;
+the presentation deck needs only the paper period.
 
 Updated-sample vintage: the Goyal-Welch workbook is the "All data up to
 2025" file from Amit Goyal's website (complete through 2024-12), and CRSP
