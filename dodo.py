@@ -23,6 +23,7 @@ from doit.tools import config_changed
 # SAMPLE_SUFFIX names the period-dependent artifacts: empty for the paper
 # period, "_{SAMPLE_END}" otherwise, so a paper run and an updated-sample run
 # coexist (see src/sample_period.py).
+from build_chartbook_images import CHART_STEMS, build_chartbook_images
 from export_forecasts import FORECASTS_PATH
 from run_bonds_study import BONDS_AVERAGED_PATH, BONDS_N_SEEDS, BONDS_PER_SEED_PATH
 from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH
@@ -649,6 +650,20 @@ sphinx_targets = [
 ]
 
 
+def task_build_chartbook_images():
+    """Wrap the static PNG figures in the HTML documents Chartbook expects."""
+    png_paths = [Path(OUTPUT_DIR) / f"{stem}.png" for stem in CHART_STEMS]
+    html_paths = [
+        Path(OUTPUT_DIR) / "chartbook" / f"{stem}.html" for stem in CHART_STEMS
+    ]
+    return {
+        "actions": [(build_chartbook_images, [OUTPUT_DIR])],
+        "targets": html_paths,
+        "file_dep": ["./src/build_chartbook_images.py", *png_paths],
+        "clean": True,
+    }
+
+
 def task_build_chartbook_site():
     """Compile Sphinx Docs"""
     notebook_scripts = [
@@ -666,6 +681,10 @@ def task_build_chartbook_site():
             for pattern in ("figure*.png", "predictor_*.png")
             for path in Path(OUTPUT_DIR).glob(pattern)
         ),
+        *[
+            Path(OUTPUT_DIR) / "chartbook" / f"{stem}.html"
+            for stem in CHART_STEMS
+        ],
     ]
 
     return {
@@ -676,6 +695,7 @@ def task_build_chartbook_site():
         "file_dep": file_dep,
         "task_dep": [
             "run_notebooks",
+            "build_chartbook_images",
         ],
         "clean": True,
     }
