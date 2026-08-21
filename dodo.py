@@ -564,12 +564,64 @@ def task_run_notebooks():
 ###############################################################
 
 
+# The final report embeds BOTH sample periods, so the report tasks can only
+# run once the OTHER period's artifacts exist on disk (the current run
+# produces its own period's inputs, and doit orders that). On a fresh clone,
+# `doit` (paper period) skips the report with a notice and still exits green;
+# `SAMPLE_END=2024-12 doit` then compiles it. Either order works.
+_REPORT_PERIOD_INPUTS = {
+    "": [
+        DATA_DIR / "oos_grid_T12.parquet",
+        DATA_DIR / "variable_importance_T12.parquet",
+        DATA_DIR / "oos_grid_bonds_T12.parquet",
+        DATA_DIR / "oos_grid_intl_T12.parquet",
+        DATA_DIR / "nagel_metrics.parquet",
+        DATA_DIR / "nagel_spanning.parquet",
+        OUTPUT_DIR / "predictor_summary_table.tex",
+        OUTPUT_DIR / "nagel_comparison_table.tex",
+        OUTPUT_DIR / "predictor_timeseries.png",
+        OUTPUT_DIR / "figure7.png",
+        OUTPUT_DIR / "figure8.png",
+        OUTPUT_DIR / "figure11.png",
+        OUTPUT_DIR / "figure_bonds.png",
+        OUTPUT_DIR / "figure_intl.png",
+        OUTPUT_DIR / "figure_nagel.png",
+    ],
+    "_2024-12": [
+        DATA_DIR / "oos_grid_T12_2024-12.parquet",
+        DATA_DIR / "oos_grid_bonds_T12_2024-12.parquet",
+        DATA_DIR / "oos_grid_intl_T12_2024-12.parquet",
+        OUTPUT_DIR / "figure8_2024-12.png",
+    ],
+}
+REPORT_INPUTS_READY = all(
+    path.exists()
+    for suffix, paths in _REPORT_PERIOD_INPUTS.items()
+    if suffix != SAMPLE_SUFFIX
+    for path in paths
+)
+_REPORT_SKIP_NOTICE = (
+    "skipped: the report embeds both sample periods. Run `doit` and "
+    "`SAMPLE_END=2024-12 doit` once each; it compiles on the second run."
+)
+
+
+def _report_skip_notice(task_name):
+    print(f"{task_name} {_REPORT_SKIP_NOTICE}")
+
+
 def task_report_values():
     """Generate the LaTeX macros the report quotes in prose (no hand-typed stats)
 
-    Depends on BOTH sample-period runs' caches (like the report): run
-    `doit` and `SAMPLE_END=2024-12 doit` once each before compiling.
+    Depends on BOTH sample-period runs' caches (like the report): until both
+    exist, the task skips itself with a notice instead of failing.
     """
+    if not REPORT_INPUTS_READY:
+        return {
+            "actions": [(_report_skip_notice, ["report_values"])],
+            "uptodate": [False],
+            "verbosity": 2,
+        }
     return {
         "actions": [
             "python ./src/settings.py",
@@ -601,10 +653,38 @@ def task_compile_latex_docs():
 
     The project report (report_kmz.tex) and the presentation deck. Both
     embed PAPER-period figures by design (the report also embeds updated
-    ones), so both sample-period runs must exist; a clone configured only
-    with a non-paper SAMPLE_END should run the default paper period first.
+    ones). Until both sample-period runs exist, the report compile skips
+    itself with a notice; the deck compiles whenever the paper-period run
+    is available (it embeds only paper-period figures).
     Depending on the OUTPUTS (not the scripts) makes doit order the tasks.
     """
+    slides_action = "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex"
+    slides_file_dep = [
+        "./reports/slides_example.tex",
+        "./reports/my_beamer_header.sty",
+        "./reports/my_common_header.sty",
+        OUTPUT_DIR / "figure8.png",
+    ]
+    if not REPORT_INPUTS_READY:
+        if SAMPLE_SUFFIX == "":
+            # Paper-period run on a fresh clone: the deck's inputs are
+            # produced in this run, so compile it and skip only the report.
+            return {
+                "actions": [
+                    (_report_skip_notice, ["compile_latex_docs (report_kmz)"]),
+                    slides_action,
+                ],
+                "file_dep": slides_file_dep,
+                "targets": ["./reports/slides_example.pdf"],
+                "verbosity": 2,
+                "clean": True,
+            }
+        # Non-paper run before the paper period exists: nothing to compile.
+        return {
+            "actions": [(_report_skip_notice, ["compile_latex_docs"])],
+            "uptodate": [False],
+            "verbosity": 2,
+        }
     file_dep = [
         "./reports/report_kmz.tex",
         "./reports/nagel_subsection.tex",
@@ -681,10 +761,7 @@ def task_build_chartbook_site():
             for pattern in ("figure*.png", "predictor_*.png")
             for path in Path(OUTPUT_DIR).glob(pattern)
         ),
-        *[
-            Path(OUTPUT_DIR) / "chartbook" / f"{stem}.html"
-            for stem in CHART_STEMS
-        ],
+        *[Path(OUTPUT_DIR) / "chartbook" / f"{stem}.html" for stem in CHART_STEMS],
     ]
 
     return {
