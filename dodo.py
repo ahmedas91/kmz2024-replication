@@ -732,37 +732,13 @@ def task_report_values():
 
 
 def task_compile_latex_docs():
-    """Compile the LaTeX documents to PDFs
+    """Compile the project report (report_kmz.tex) to PDF
 
-    The project report (report_kmz.tex) and the presentation deck. Both
-    embed PAPER-period figures by design (the report also embeds updated
-    ones). Until both sample-period runs exist, the report compile skips
-    itself with a notice; the deck compiles whenever the paper-period run
-    is available (it embeds only paper-period figures).
+    The report embeds figures from BOTH sample periods, so until both runs
+    exist the task skips itself with a notice instead of failing.
     Depending on the OUTPUTS (not the scripts) makes doit order the tasks.
     """
-    slides_action = "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex"
-    slides_file_dep = [
-        "./reports/slides_example.tex",
-        "./reports/my_beamer_header.sty",
-        "./reports/my_common_header.sty",
-        OUTPUT_DIR / "figure8.png",
-    ]
     if not REPORT_INPUTS_READY:
-        if SAMPLE_SUFFIX == "":
-            # Paper-period run on a fresh clone: the deck's inputs are
-            # produced in this run, so compile it and skip only the report.
-            return {
-                "actions": [
-                    (_report_skip_notice, ["compile_latex_docs (report_kmz)"]),
-                    slides_action,
-                ],
-                "file_dep": slides_file_dep,
-                "targets": ["./reports/slides_example.pdf"],
-                "verbosity": 2,
-                "clean": True,
-            }
-        # Non-paper run before the paper period exists: nothing to compile.
         return {
             "actions": [(_report_skip_notice, ["compile_latex_docs"])],
             "uptodate": [False],
@@ -773,8 +749,6 @@ def task_compile_latex_docs():
         "./reports/nagel_subsection.tex",
         "./reports/bibliography.bib",
         "./reports/my_article_header.sty",
-        "./reports/slides_example.tex",
-        "./reports/my_beamer_header.sty",
         "./reports/my_common_header.sty",
         OUTPUT_DIR / "report_values.tex",
         OUTPUT_DIR / "predictor_summary_table.tex",
@@ -790,10 +764,6 @@ def task_compile_latex_docs():
         OUTPUT_DIR / "figure_nagel.png",
         OUTPUT_DIR / "figure_nagel_twins.png",
     ]
-    targets = [
-        "./reports/report_kmz.pdf",
-        "./reports/slides_example.pdf",
-    ]
 
     return {
         # No latexmk -c clean step: the aux files (especially the .bbl) stay
@@ -802,9 +772,8 @@ def task_compile_latex_docs():
         # every citation instead of printing "?".
         "actions": [
             "latexmk -xelatex -halt-on-error -cd ./reports/report_kmz.tex",
-            "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",
         ],
-        "targets": targets,
+        "targets": ["./reports/report_kmz.pdf"],
         "file_dep": file_dep,
         "clean": True,
     }

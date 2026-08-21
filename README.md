@@ -16,14 +16,14 @@ Authors: Ahmed Alahmadi and Jeff Key.
 The project is a `doit` build graph (`dodo.py`). Each stage is a task with
 file targets in `_data/` or `_output/`; `doit` runs only what is stale.
 
-| Stage | Tasks | What it produces |
-| --- | --- | --- |
-| Pull | `pull:goyal_welch`, `pull:crsp_stock`, `pull:intl_equity` | Raw parquets: the Goyal-Welch predictor workbook, the CRSP value-weighted index (WRDS), the Ken French developed-ex-US factors |
-| Tidy | `tidy`, `tidy_bonds` | `kmz_dataset.parquet` (market excess return plus the 15 predictors), `bond_returns.parquet`. Cleaning only, no analysis |
-| Standardize | `standardize` | `kmz_dataset_standardized.parquet`: backward-looking volatility standardization, the analysis-ready dataset from 1930-01 |
-| Estimate | `estimate`, `export_forecasts`, `variable_importance`, `bonds_study`, `intl_study`, `nagel` | Out-of-sample statistics grids per study, the anchor forecast export, the variable-importance runs, the Nagel critique results |
-| Present | `figure7`, `figure8`, `figure11`, `figure_bonds`, `figure_intl`, `summary_stats`, `report_values` | Figures, the summary table, and the generated LaTeX macros, all in `_output/` |
-| Publish | `compile_latex_docs`, `run_notebooks`, `build_chartbook_site`, `run_pytest` | The report and slide PDFs in `reports/`, the executed tour notebook, the docs site in `docs/` |
+| Stage       | Tasks                                                                                                           | What it produces                                                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Pull        | `pull:goyal_welch`, `pull:crsp_stock`, `pull:intl_equity`                                                 | Raw parquets: the Goyal-Welch predictor workbook, the CRSP value-weighted index (WRDS), the Ken French developed-ex-US factors |
+| Tidy        | `tidy`, `tidy_bonds`                                                                                        | `kmz_dataset.parquet` (market excess return plus the 15 predictors), `bond_returns.parquet`. Cleaning only, no analysis    |
+| Standardize | `standardize`                                                                                                 | `kmz_dataset_standardized.parquet`: backward-looking volatility standardization, the analysis-ready dataset from 1930-01     |
+| Estimate    | `estimate`, `export_forecasts`, `variable_importance`, `bonds_study`, `intl_study`, `nagel`         | Out-of-sample statistics grids per study, the anchor forecast export, the variable-importance runs, the Nagel critique results |
+| Present     | `figure7`, `figure8`, `figure11`, `figure_bonds`, `figure_intl`, `summary_stats`, `report_values` | Figures, the summary table, and the generated LaTeX macros, all in`_output/`                                                 |
+| Publish     | `compile_latex_docs`, `run_notebooks`, `build_chartbook_site`, `run_pytest`                             | The report PDF in `reports/`, the executed tour notebook, the docs site in `docs/`                                         |
 
 Estimation math and conventions live in the `voc` package
 (`voc.run_voc_study` runs a study on any target and predictor set); the
@@ -73,8 +73,7 @@ SAMPLE_END=2024-12 doit  # updated sample (figure8_2024-12.png, ...)
 The pulls and tidy datasets are period-independent (full history, bounded
 by `START_DATE`/`END_DATE`) and are trimmed downstream, so switching
 periods never re-pulls. The report embeds both periods, so its tasks skip
-themselves with a notice until both runs exist, then compile automatically;
-the presentation deck needs only the paper period.
+themselves with a notice until both runs exist, then compile automatically.
 
 Updated-sample vintage: the Goyal-Welch workbook is the "All data up to
 2025" file from Amit Goyal's website (complete through 2024-12), and CRSP
@@ -102,7 +101,7 @@ not fail, until the pipeline has produced their inputs.
   engine, preprocessing, the Nagel toolkit) and its tests
 - `_data/`, `_output/`: generated, gitignored, fully recreatable
 - `data_manual/`: non-recreatable data, tracked (currently none needed)
-- `reports/`: the LaTeX report and presentation deck
+- `reports/`: the LaTeX report
 - `docs_src/`, `docs/`: chartbook site sources and build
 - `materials/`: the paper, project instructions, and grading rubric
 
