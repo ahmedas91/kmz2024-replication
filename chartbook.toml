@@ -177,7 +177,7 @@ description = "Replication of the paper's Figure 7: OOS R2, mean beta norm, timi
 dataframe = "oos_grid_T12"
 tags = ["figure", "replication", "oos"]
 frequency = "monthly"
-path = "_output/figure7.png"
+path = "_output/chartbook/figure7.html"
 docs_path = "docs_src/charts/figure7.md"
 
 
@@ -187,7 +187,7 @@ description = "Replication of the paper's Figure 8, its crux result: market-timi
 dataframe = "oos_grid_T12"
 tags = ["figure", "replication", "oos"]
 frequency = "monthly"
-path = "_output/figure8.png"
+path = "_output/chartbook/figure8.html"
 docs_path = "docs_src/charts/figure8.md"
 
 
@@ -197,7 +197,7 @@ description = "Replication of the paper's Figure 11: variable importance for eac
 dataframe = "variable_importance_T12"
 tags = ["figure", "replication", "variable-importance"]
 frequency = "monthly"
-path = "_output/figure11.png"
+path = "_output/chartbook/figure11.html"
 docs_path = "docs_src/charts/figure11.md"
 
 
@@ -207,7 +207,7 @@ description = "Virtue-of-complexity panels for long-term government and corporat
 dataframe = "oos_grid_bonds_T12"
 tags = ["figure", "bonds", "voc", "extension"]
 frequency = "monthly"
-path = "_output/figure_bonds.png"
+path = "_output/chartbook/figure_bonds.html"
 docs_path = "docs_src/charts/figure_bonds.md"
 
 
@@ -217,7 +217,7 @@ description = "External-validity test: OOS R2 and Sharpe ratio against model com
 dataframe = "oos_grid_intl_T12"
 tags = ["figure", "international", "voc", "extension"]
 frequency = "monthly"
-path = "_output/figure_intl.png"
+path = "_output/chartbook/figure_intl.html"
 docs_path = "docs_src/charts/figure_intl.md"
 
 
@@ -227,7 +227,7 @@ description = "The VoC forecast's estimated lag weights on the trailing 12 stand
 dataframe = "nagel_anatomy"
 tags = ["figure", "nagel", "critique"]
 frequency = "monthly"
-path = "_output/figure_nagel.png"
+path = "_output/chartbook/figure_nagel.html"
 docs_path = "docs_src/charts/figure_nagel.md"
 
 
@@ -237,6 +237,6 @@ description = "Small-multiples overview of the volatility-standardized market ex
 dataframe = "kmz_dataset_standardized"
 tags = ["monthly", "predictors", "standardized"]
 frequency = "monthly"
-path = "_output/predictor_timeseries.png"
+path = "_output/chartbook/predictor_timeseries.html"
 docs_path = "docs_src/charts/predictor_timeseries.md"
 

@@ -35,6 +35,8 @@ For a guided walk through the data and the estimation mechanics, start with
 the tour notebook (`src/01_kmz_tour.ipynb.py`, executed by
 `doit run_notebooks` to `_output/01_kmz_tour.html`) or browse the docs site
 (`doit build_chartbook_site`, then open `docs/index.html`).
+The site build first wraps the static PNG figures in self-contained HTML pages,
+because Chartbook embeds registered charts as HTML documents.
 
 ## Setup and run
 
