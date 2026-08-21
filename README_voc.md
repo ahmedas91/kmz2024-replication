@@ -40,18 +40,29 @@ per_seed, averaged = run_voc_study(
 # `averaged` has one row per (P, z): out-of-sample R^2, Sharpe, alpha, IR, ...
 ```
 
-Deeply **negative out-of-sample R²** alongside a **rising Sharpe ratio** as
-complexity grows is the paper's central finding, not a bug: R² is dominated by
-forecast scale while trading profits load on forecast direction.
+> **Note:** a deeply negative out-of-sample R² is expected here and is a part of the paper's finding even as sharpe ratio increases.
 
 ## What's inside
 
-- `voc.rff`: the random Fourier feature map (paper eq. 20), with nested draws.
-- `voc.kernel_ridge`: dual-form (T × T) ridge and its ridgeless limit; no intercept.
-- `voc.oos_engine`: the recursive out-of-sample loop and `run_voc_study`.
-- `voc.performance_metrics`: OOS R², Sharpe, alpha / IR / t-stat.
-- `voc.preprocessing`: volatility standardization steps for new studies.
-- `voc.nagel`: tools to run Nagel's (2025) momentum critique on a study.
+- **`voc.rff`** : the random Fourier feature map (paper eq. 20): draw the Gaussian
+  weights, project the predictors through the paired sin/cos map, and scale by
+  training-window volatility. Nested draws let one maximum-size draw serve every
+  smaller model in the complexity grid.
+- **`voc.kernel_ridge`** : ridge in its dual (kernel) form, so each fit is a
+  T × T solve (12 × 12) even at P = 12,000, plus the ridgeless (minimum-norm)
+  limit and prediction. No intercept.
+- **`voc.oos_engine`** : the recursive out-of-sample loop (`run_recursive_oos`), the
+  generic study runner `run_voc_study` (and the DataFrame convenience `run_grid`),
+  and an optional per-seed forecast export. Parallelized across seeds with joblib.
+- **`voc.performance_metrics`** : out-of-sample R² against the zero-forecast
+  benchmark, the annualized Sharpe ratio, and alpha / information ratio /
+  t-statistic versus a static position in the standardized market.
+- **`voc.preprocessing`** : the strictly backward-looking volatility standardization
+  a new study applies to its inputs (`standardize_inputs`, plus the trailing- and
+  expanding-window volatility building blocks).
+- **`voc.nagel`** : Nagel's (2025) momentum critique as reusable tests: the
+  declining-weight benchmark, the forecast-anatomy regression, and the spanning
+  regression.
 
 ## Reference
 
