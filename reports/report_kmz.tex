@@ -26,12 +26,17 @@
 window. Our replication matches the published anchor values at the ridgeless
 high-complexity configuration within about one percent (alpha $t$-statistic
 \MktAlphaT, information ratio \MktIR, Sharpe ratio \MktSharpe), reproduces
-the paper's variable-importance ranking, and extends the analysis four ways:
+the paper's variable-importance ranking, and extends the analysis five ways:
 updated data through 2024, government and corporate bonds, developed ex-US
-equities, and the critique of \citet{nagel2025seemingly}. The virtue of
-complexity replicates and survives updated data and bond markets; it does not
-survive the trip abroad, and most of its performance is spanned by a simple
-momentum rule.
+equities, the source-faithful counterfactuals of
+\citet{nagel2025seemingly}, and matched markets with an explicitly planted
+nonlinear rule. The virtue of complexity replicates and survives updated data
+and bond markets but does not survive the trip abroad. The final experiments
+favor Nagel's mechanical account of the historical payoff, while the matched
+twins show that the estimator can recover a strong planted nonlinear signal in
+a clean design. Evidence for an economically distinct payoff, however,
+disappears at realistic signal strength and weakens when each world receives
+its own lagged return.
 \end{abstract}
 
 \section{Introduction}
@@ -51,8 +56,9 @@ window: Figure~7 (forecast accuracy and strategy moments against
 complexity), Figure~8 (risk-adjusted trading performance against
 complexity), and Figure~11 (variable importance). We then rerun everything
 on data through 2024 and test external validity on bonds and international
-equities, and we implement the momentum critique of
-\citet{nagel2025seemingly}. Sections~\ref{sec:data}
+equities, implement the direct tests of \citet{nagel2025seemingly}, and add
+matched +/- markets that distinguish payoff spanning from recovery of a
+planted conditional mean. Sections~\ref{sec:data}
 through~\ref{sec:challenges} describe the data, the summary statistics, the
 replication, the updated sample, the extensions, and the challenges.
 

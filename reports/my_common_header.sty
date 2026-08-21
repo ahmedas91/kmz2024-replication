@@ -345,16 +345,16 @@ title    = #3,
 % https://en.wikibooks.org/wiki/LaTeX/Theorems#Theorem_counters
 %\newtheorem{proposition}{Proposition}
 \newtheorem{proposition}{Proposition}
-\newtheorem{mylemma}[proposition]{Lemma}
-\newtheorem{mycorollary}[proposition]{Corollary} 
-\newtheorem{myassumption}[proposition]{Assumption} 
+% \newtheorem{mylemma}[proposition]{Lemma}       % unused; thmtools shared-counter clash
+% \newtheorem{mycorollary}[proposition]{Corollary} % unused
+% \newtheorem{myassumption}[proposition]{Assumption} % unused
 % OLD: Use proposition counter as `parent` %This comes from https://tex.stackexchange.com/a/381593/41208
 % \newtheorem{theorem}{Theorem}[section]
 
 \theoremstyle{definition}
 \newtheorem{myexample}{Example}[section]
 \theoremstyle{definition}
-\newtheorem{mydefinition}[proposition]{Definition}
+% \newtheorem{mydefinition}[proposition]{Definition} % unused
 
 
 \newcommand\xqed[1]{%

@@ -25,6 +25,18 @@ from doit.tools import config_changed
 # coexist (see src/sample_period.py).
 from build_chartbook_images import CHART_STEMS, build_chartbook_images
 from export_forecasts import FORECASTS_PATH
+from nagel_experiments import (
+    COUNTERFACTUAL_SPANNING_PATH,
+    COUNTERFACTUALS_PATH,
+    NAGEL_ANCHOR_P,
+    NAGEL_BOOTSTRAP_SEED,
+    NAGEL_N_SEEDS,
+    NAGEL_SIMULATION_SEED,
+    NAGEL_TWIN_SHOCK_SEED,
+    TWIN_PATHS_PATH,
+    TWIN_RECOVERY_PATH,
+    TWIN_SPANNING_PATH,
+)
 from run_bonds_study import BONDS_AVERAGED_PATH, BONDS_N_SEEDS, BONDS_PER_SEED_PATH
 from run_estimation import AVERAGED_PATH, N_SEEDS, PER_SEED_PATH
 from run_intl_study import INTL_AVERAGED_PATH, INTL_N_SEEDS, INTL_PER_SEED_PATH
@@ -289,28 +301,40 @@ def task_export_forecasts():
             DATA_DIR / "kmz_dataset_standardized.parquet",
         ],
         "targets": [FORECASTS_PATH],
-        # TRAIN_WINDOW and SAMPLE_END are visible through the target
-        # filename; N_SEEDS is not, so track it explicitly.
-        "uptodate": [config_changed({"N_SEEDS": str(N_SEEDS)})],
+        # SAMPLE_END is visible in the target filename; seed count and T are
+        # not, so track both explicitly to prevent stale forecast reuse.
+        "uptodate": [
+            config_changed(
+                {
+                    "N_SEEDS": str(N_SEEDS),
+                    "TRAIN_WINDOW": str(config("TRAIN_WINDOW", default=12, cast=int)),
+                }
+            )
+        ],
         "clean": [],
     }
 
 
-def task_nagel():
-    """Run Nagel's critique tests, then build the comparison table and figure"""
+def task_nagel_analysis():
+    """Compute Nagel diagnostics, counterfactuals, and paired twin tests"""
     return {
         "actions": [
             "python ./src/settings.py",
             "python ./src/nagel_analysis.py",
-            "python ./src/table_nagel.py",
+            "python ./src/nagel_experiments.py",
         ],
         "file_dep": [
             "./src/settings.py",
             "./src/sample_period.py",
             "./src/nagel_analysis.py",
-            "./src/table_nagel.py",
+            "./src/nagel_experiments.py",
+            "./src/standardize_kmz.py",
             "./voc/nagel.py",
+            "./voc/oos_engine.py",
+            "./voc/rff.py",
+            "./voc/kernel_ridge.py",
             "./voc/performance_metrics.py",
+            DATA_DIR / "kmz_dataset.parquet",
             DATA_DIR / "kmz_dataset_standardized.parquet",
             FORECASTS_PATH,
         ],
@@ -318,10 +342,58 @@ def task_nagel():
             DATA_DIR / f"nagel_metrics{SAMPLE_SUFFIX}.parquet",
             DATA_DIR / f"nagel_anatomy{SAMPLE_SUFFIX}.parquet",
             DATA_DIR / f"nagel_spanning{SAMPLE_SUFFIX}.parquet",
+            COUNTERFACTUALS_PATH,
+            COUNTERFACTUAL_SPANNING_PATH,
+            TWIN_RECOVERY_PATH,
+            TWIN_SPANNING_PATH,
+            TWIN_PATHS_PATH,
+        ],
+        "uptodate": [
+            config_changed(
+                {
+                    "TRAIN_WINDOW": str(config("TRAIN_WINDOW", default=12, cast=int)),
+                    "NAGEL_N_SEEDS": str(NAGEL_N_SEEDS),
+                    "NAGEL_ANCHOR_P": str(NAGEL_ANCHOR_P),
+                    "NAGEL_SIMULATION_SEED": str(NAGEL_SIMULATION_SEED),
+                    "NAGEL_BOOTSTRAP_SEED": str(NAGEL_BOOTSTRAP_SEED),
+                    "NAGEL_TWIN_SHOCK_SEED": str(NAGEL_TWIN_SHOCK_SEED),
+                }
+            )
+        ],
+        # These caches are expensive and safe to retain across `doit clean`.
+        "clean": [],
+    }
+
+
+def task_nagel():
+    """Render all Nagel tables and figures from the cached experiments"""
+    return {
+        "actions": [
+            "python ./src/settings.py",
+            "python ./src/table_nagel.py",
+        ],
+        "file_dep": [
+            "./src/settings.py",
+            "./src/sample_period.py",
+            "./src/table_nagel.py",
+            DATA_DIR / f"nagel_metrics{SAMPLE_SUFFIX}.parquet",
+            DATA_DIR / f"nagel_anatomy{SAMPLE_SUFFIX}.parquet",
+            DATA_DIR / f"nagel_spanning{SAMPLE_SUFFIX}.parquet",
+            COUNTERFACTUALS_PATH,
+            COUNTERFACTUAL_SPANNING_PATH,
+            TWIN_RECOVERY_PATH,
+            TWIN_SPANNING_PATH,
+            TWIN_PATHS_PATH,
+        ],
+        "targets": [
             OUTPUT_DIR / f"nagel_comparison_table{SAMPLE_SUFFIX}.tex",
+            OUTPUT_DIR / f"nagel_experiments_table{SAMPLE_SUFFIX}.tex",
             OUTPUT_DIR / f"figure_nagel{SAMPLE_SUFFIX}.png",
             OUTPUT_DIR / f"figure_nagel{SAMPLE_SUFFIX}.pdf",
+            OUTPUT_DIR / f"figure_nagel_twins{SAMPLE_SUFFIX}.png",
+            OUTPUT_DIR / f"figure_nagel_twins{SAMPLE_SUFFIX}.pdf",
         ],
+        "task_dep": ["nagel_analysis"],
         "clean": True,
     }
 
@@ -577,8 +649,14 @@ _REPORT_PERIOD_INPUTS = {
         DATA_DIR / "oos_grid_intl_T12.parquet",
         DATA_DIR / "nagel_metrics.parquet",
         DATA_DIR / "nagel_spanning.parquet",
+        DATA_DIR / "nagel_counterfactuals.parquet",
+        DATA_DIR / "nagel_counterfactual_spanning.parquet",
+        DATA_DIR / "nagel_twin_recovery.parquet",
+        DATA_DIR / "nagel_twin_spanning.parquet",
+        DATA_DIR / "nagel_twin_paths.parquet",
         OUTPUT_DIR / "predictor_summary_table.tex",
         OUTPUT_DIR / "nagel_comparison_table.tex",
+        OUTPUT_DIR / "nagel_experiments_table.tex",
         OUTPUT_DIR / "predictor_timeseries.png",
         OUTPUT_DIR / "figure7.png",
         OUTPUT_DIR / "figure8.png",
@@ -586,6 +664,7 @@ _REPORT_PERIOD_INPUTS = {
         OUTPUT_DIR / "figure_bonds.png",
         OUTPUT_DIR / "figure_intl.png",
         OUTPUT_DIR / "figure_nagel.png",
+        OUTPUT_DIR / "figure_nagel_twins.png",
     ],
     "_2024-12": [
         DATA_DIR / "oos_grid_T12_2024-12.parquet",
@@ -642,6 +721,10 @@ def task_report_values():
             DATA_DIR / "oos_grid_intl_T12_2024-12.parquet",
             DATA_DIR / "nagel_metrics.parquet",
             DATA_DIR / "nagel_spanning.parquet",
+            DATA_DIR / "nagel_counterfactuals.parquet",
+            DATA_DIR / "nagel_counterfactual_spanning.parquet",
+            DATA_DIR / "nagel_twin_recovery.parquet",
+            DATA_DIR / "nagel_twin_spanning.parquet",
         ],
         "targets": [OUTPUT_DIR / "report_values.tex"],
         "clean": True,
@@ -696,6 +779,7 @@ def task_compile_latex_docs():
         OUTPUT_DIR / "report_values.tex",
         OUTPUT_DIR / "predictor_summary_table.tex",
         OUTPUT_DIR / "nagel_comparison_table.tex",
+        OUTPUT_DIR / "nagel_experiments_table.tex",
         OUTPUT_DIR / "predictor_timeseries.png",
         OUTPUT_DIR / "figure7.png",
         OUTPUT_DIR / "figure8.png",
@@ -704,6 +788,7 @@ def task_compile_latex_docs():
         OUTPUT_DIR / "figure_bonds.png",
         OUTPUT_DIR / "figure_intl.png",
         OUTPUT_DIR / "figure_nagel.png",
+        OUTPUT_DIR / "figure_nagel_twins.png",
     ]
     targets = [
         "./reports/report_kmz.pdf",
@@ -785,13 +870,26 @@ def task_run_pytest():
     tested_py_files = [
         path for folder in ("./src", "./voc") for path in Path(folder).glob("*.py")
     ]
+    # The Nagel integration tests inspect canonical result schemas. Make the
+    # publication test gate build and track those caches so a clean-clone run
+    # cannot record them as skipped forever in an otherwise up-to-date XML.
+    nagel_test_caches = [
+        DATA_DIR / f"nagel_metrics{SAMPLE_SUFFIX}.parquet",
+        DATA_DIR / f"nagel_anatomy{SAMPLE_SUFFIX}.parquet",
+        DATA_DIR / f"nagel_spanning{SAMPLE_SUFFIX}.parquet",
+        COUNTERFACTUALS_PATH,
+        COUNTERFACTUAL_SPANNING_PATH,
+        TWIN_RECOVERY_PATH,
+        TWIN_SPANNING_PATH,
+        TWIN_PATHS_PATH,
+    ]
     test_output = OUTPUT_DIR / "pytest_results.xml"
 
     def run_pytest():
         import subprocess
 
         result = subprocess.run(
-            ["pytest", f"--junitxml={test_output}"],
+            ["pytest", "src", "voc", f"--junitxml={test_output}"],
             check=False,  # the returncode is inspected below
         )
         if result.returncode != 0:
@@ -802,7 +900,8 @@ def task_run_pytest():
     return {
         "actions": [run_pytest],
         "targets": [test_output],
-        "file_dep": tested_py_files,
+        "file_dep": [*tested_py_files, *nagel_test_caches],
+        "task_dep": ["nagel_analysis"],
         "clean": True,
         "verbosity": 2,
     }
